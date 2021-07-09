@@ -329,9 +329,10 @@ void PolygonDecomposer::sliceNewCell(const Point& upper, const Point& lower)
   new_cell.points.push_back(*it);
 
   // remove the points of new_cell (except upper and lower!) from the working cell
-  auto new_cell_iterator = new_cell.toPolygon().vertices_begin();
+  Polygon new_polygon = new_cell.toPolygon();
+  auto new_cell_iterator = new_polygon.vertices_begin();
   new_cell_iterator++;  // skip upper
-  for (; new_cell_iterator != new_cell.toPolygon().vertices_end() - 1; new_cell_iterator++)
+  for (; new_cell_iterator != new_polygon.vertices_end() - 1; new_cell_iterator++)
   {
     // for each point in the new cell, we need to remove it from the working cell
     working_cell.points.erase(findPointInVector(*new_cell_iterator, working_cell.points));
