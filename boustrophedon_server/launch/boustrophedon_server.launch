@@ -1,20 +1,36 @@
 <launch>
+    <arg name="repeat_boundary" default="false"/>
+    <arg name="outline_clockwise" default="false"/>
+    <arg name="skip_outlines" default="false"/>
+    <arg name="outline_layer_count" default="1"/>
+    <arg name="stripe_separation" default="1.5"/>
+    <arg name="intermediary_separation" default="0.0"/>
+    <arg name="stripe_angle" default="0.0"/>
+    <arg name="enable_stripe_angle_orientation" default="false" />
+    <arg name="travel_along_boundary" default="false" />
+    <arg name="allow_points_outside_boundary" default="false" />
+    <arg name="enable_half_y_turns" default="true" />
+    <arg name="points_per_turn" default="10" />
+    <arg name="turn_start_offset" default="0.0" />
+    <arg name="publish_polygons" default="true"/>
+    <arg name="publish_path_points" default="true"/>
+
     <node pkg="boustrophedon_server" type="boustrophedon_planner_server" name="boustrophedon_server"  output="screen" >
-        <param name="repeat_boundary" value="false"/>
-        <param name="outline_clockwise" value="false"/>
-        <param name="skip_outlines" value="true"/>
-        <param name="outline_layer_count" value="1"/>
-        <param name="stripe_separation" value="1.0"/>
-        <param name="intermediary_separation" value="0.0"/>
-        <param name="stripe_angle" value="0.0"/>
-        <param name="enable_stripe_angle_orientation" value="false" />
-        <param name="travel_along_boundary" value="true" />
-        <param name="allow_points_outside_boundary" value="false" />
+        <param name="repeat_boundary" value="$(arg repeat_boundary)"/>
+        <param name="outline_clockwise" value="$(arg outline_clockwise)"/>
+        <param name="skip_outlines" value="$(arg skip_outlines)"/>
+        <param name="outline_layer_count" value="$(arg outline_layer_count)"/>
+        <param name="stripe_separation" value="$(arg stripe_separation)"/>
+        <param name="intermediary_separation" value="$(arg intermediary_separation)"/>
+        <param name="stripe_angle" value="$(arg stripe_angle)"/>
+        <param name="enable_stripe_angle_orientation" value="$(arg enable_stripe_angle_orientation)" />
+        <param name="travel_along_boundary" value="$(arg travel_along_boundary)" />
+        <param name="allow_points_outside_boundary" value="$(arg allow_points_outside_boundary)" />
         <!-- Note: if enabling half-y turns, must have an outline_layer_count >= 1 -->
-        <param name="enable_half_y_turns" value="true" />
-        <param name="points_per_turn" value="15" />
-        <param name="turn_start_offset" value="0.5" />
-        <param name="publish_polygons" value="true"/>
-        <param name="publish_path_points" value="true"/>
+        <param name="enable_half_y_turns" value="$(arg enable_half_y_turns)" />
+        <param name="points_per_turn" value="$(arg points_per_turn)" />
+        <param name="turn_start_offset" value="$(arg turn_start_offset)" />
+        <param name="publish_polygons" value="$(arg publish_polygons)"/>
+        <param name="publish_path_points" value="$(arg publish_path_points)"/>
     </node>
 </launch>

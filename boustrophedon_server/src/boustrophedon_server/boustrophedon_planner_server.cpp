@@ -11,35 +11,33 @@ BoustrophedonPlannerServer::BoustrophedonPlannerServer()
 {
   std::size_t error = 0;
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "repeat_boundary", repeat_boundary_));
+      !private_node_handle_.getParamCached("repeat_boundary", repeat_boundary_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "outline_clockwise", outline_clockwise_));
+      !private_node_handle_.getParamCached("outline_clockwise", outline_clockwise_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "skip_outlines", skip_outlines_));
+      !private_node_handle_.getParamCached("skip_outlines", skip_outlines_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "outline_layer_count", outline_layer_count_));
+      !private_node_handle_.getParamCached("outline_layer_count", outline_layer_count_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "stripe_separation", stripe_separation_));
+      !private_node_handle_.getParamCached("stripe_separation", stripe_separation_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "intermediary_separation", intermediary_separation_));
+      !private_node_handle_.getParamCached("intermediary_separation", intermediary_separation_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "stripe_angle", stripe_angle_));
-  error += static_cast<std::size_t>(!rosparam_shortcuts::get("plan_path", private_node_handle_,
-                                                             "enable_stripe_angle_orientation", enable_orientation_));
+      !private_node_handle_.getParamCached("stripe_angle", stripe_angle_));
+  error += static_cast<std::size_t>(!private_node_handle_.getParamCached("enable_stripe_angle_orientation", enable_orientation_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "travel_along_boundary", travel_along_boundary_));
-  error += static_cast<std::size_t>(!rosparam_shortcuts::get(
-      "plan_path", private_node_handle_, "allow_points_outside_boundary", allow_points_outside_boundary_));
+      !private_node_handle_.getParamCached("travel_along_boundary", travel_along_boundary_));
+  error += static_cast<std::size_t>(!private_node_handle_.getParamCached("allow_points_outside_boundary", allow_points_outside_boundary_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "enable_half_y_turns", enable_half_y_turns_));
+      !private_node_handle_.getParamCached("enable_half_y_turns", enable_half_y_turns_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "points_per_turn", points_per_turn_));
+      !private_node_handle_.getParamCached("points_per_turn", points_per_turn_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "turn_start_offset", turn_start_offset_));
+      !private_node_handle_.getParamCached("turn_start_offset", turn_start_offset_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "publish_polygons", publish_polygons_));
+      !private_node_handle_.getParamCached("publish_polygons", publish_polygons_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "publish_path_points", publish_path_points_));
+      !private_node_handle_.getParamCached("publish_path_points", publish_path_points_));
   rosparam_shortcuts::shutdownIfError("plan_path", error);
 
   if (intermediary_separation_ <= 0.0)
@@ -88,6 +86,11 @@ BoustrophedonPlannerServer::BoustrophedonPlannerServer()
 void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs::PlanMowingPathGoalConstPtr& goal)
 {
   std::string boundary_frame = goal->property.header.frame_id;
+
+  // EQ: Special use case override
+  private_node_handle_.getParamCached("stripe_angle", stripe_angle_);
+  private_node_handle_.getParamCached("stripe_separation", stripe_angle_);
+
   if (enable_orientation_)
   {
     stripe_angle_ = getStripeAngleFromOrientation(goal->robot_position);
