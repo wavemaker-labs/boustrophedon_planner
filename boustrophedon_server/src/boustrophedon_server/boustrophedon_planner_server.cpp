@@ -89,8 +89,9 @@ void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs:
 
   // EQ: Special use case override
   private_node_handle_.getParamCached("stripe_angle", stripe_angle_);
-  private_node_handle_.getParamCached("stripe_separation", stripe_angle_);
+  private_node_handle_.getParamCached("stripe_separation", stripe_separation_);
 
+  ROS_INFO_STREAM("using Angle: " << stripe_angle_ << " and Spacing: " << stripe_separation_);
   if (enable_orientation_)
   {
     stripe_angle_ = getStripeAngleFromOrientation(goal->robot_position);
