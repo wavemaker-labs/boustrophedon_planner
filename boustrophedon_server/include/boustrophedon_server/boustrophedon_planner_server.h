@@ -64,6 +64,7 @@ private:
   geometry_msgs::PolygonStamped convertCGALPolygonToMsg(const Polygon& poly) const;
   void publishPathPoints(const std::vector<NavPoint>& path) const;
   void publishPolygonPoints(const Polygon& poly) const;
+  std::size_t fetchParams();
 };
 
 #endif  // SRC_BOUSTROPHEDON_PLANNER_SERVER_H

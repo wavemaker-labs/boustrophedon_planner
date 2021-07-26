@@ -9,36 +9,7 @@ BoustrophedonPlannerServer::BoustrophedonPlannerServer()
   , conversion_server_{ node_handle_.advertiseService("convert_striping_plan_to_path",
                                                       &BoustrophedonPlannerServer::convertStripingPlanToPath, this) }
 {
-  std::size_t error = 0;
-  error += static_cast<std::size_t>(
-      !private_node_handle_.getParamCached("repeat_boundary", repeat_boundary_));
-  error += static_cast<std::size_t>(
-      !private_node_handle_.getParamCached("outline_clockwise", outline_clockwise_));
-  error += static_cast<std::size_t>(
-      !private_node_handle_.getParamCached("skip_outlines", skip_outlines_));
-  error += static_cast<std::size_t>(
-      !private_node_handle_.getParamCached("outline_layer_count", outline_layer_count_));
-  error += static_cast<std::size_t>(
-      !private_node_handle_.getParamCached("stripe_separation", stripe_separation_));
-  error += static_cast<std::size_t>(
-      !private_node_handle_.getParamCached("intermediary_separation", intermediary_separation_));
-  error += static_cast<std::size_t>(
-      !private_node_handle_.getParamCached("stripe_angle", stripe_angle_));
-  error += static_cast<std::size_t>(!private_node_handle_.getParamCached("enable_stripe_angle_orientation", enable_orientation_));
-  error += static_cast<std::size_t>(
-      !private_node_handle_.getParamCached("travel_along_boundary", travel_along_boundary_));
-  error += static_cast<std::size_t>(!private_node_handle_.getParamCached("allow_points_outside_boundary", allow_points_outside_boundary_));
-  error += static_cast<std::size_t>(
-      !private_node_handle_.getParamCached("enable_half_y_turns", enable_half_y_turns_));
-  error += static_cast<std::size_t>(
-      !private_node_handle_.getParamCached("points_per_turn", points_per_turn_));
-  error += static_cast<std::size_t>(
-      !private_node_handle_.getParamCached("turn_start_offset", turn_start_offset_));
-  error += static_cast<std::size_t>(
-      !private_node_handle_.getParamCached("publish_polygons", publish_polygons_));
-  error += static_cast<std::size_t>(
-      !private_node_handle_.getParamCached("publish_path_points", publish_path_points_));
-  rosparam_shortcuts::shutdownIfError("plan_path", error);
+  std::size_t error = fetchParams();
 
   if (intermediary_separation_ <= 0.0)
   {
@@ -83,13 +54,47 @@ BoustrophedonPlannerServer::BoustrophedonPlannerServer()
   }
 }
 
+std::size_t BoustrophedonPlannerServer::fetchParams()
+{
+  std::size_t error = 0;
+  error += static_cast<std::size_t>(
+      !private_node_handle_.getParamCached("repeat_boundary", repeat_boundary_));
+  error += static_cast<std::size_t>(
+      !private_node_handle_.getParamCached("outline_clockwise", outline_clockwise_));
+  error += static_cast<std::size_t>(
+      !private_node_handle_.getParamCached("skip_outlines", skip_outlines_));
+  error += static_cast<std::size_t>(
+      !private_node_handle_.getParamCached("outline_layer_count", outline_layer_count_));
+  error += static_cast<std::size_t>(
+      !private_node_handle_.getParamCached("stripe_separation", stripe_separation_));
+  error += static_cast<std::size_t>(
+      !private_node_handle_.getParamCached("intermediary_separation", intermediary_separation_));
+  error += static_cast<std::size_t>(
+      !private_node_handle_.getParamCached("stripe_angle", stripe_angle_));
+  error += static_cast<std::size_t>(!private_node_handle_.getParamCached("enable_stripe_angle_orientation", enable_orientation_));
+  error += static_cast<std::size_t>(
+      !private_node_handle_.getParamCached("travel_along_boundary", travel_along_boundary_));
+  error += static_cast<std::size_t>(!private_node_handle_.getParamCached("allow_points_outside_boundary", allow_points_outside_boundary_));
+  error += static_cast<std::size_t>(
+      !private_node_handle_.getParamCached("enable_half_y_turns", enable_half_y_turns_));
+  error += static_cast<std::size_t>(
+      !private_node_handle_.getParamCached("points_per_turn", points_per_turn_));
+  error += static_cast<std::size_t>(
+      !private_node_handle_.getParamCached("turn_start_offset", turn_start_offset_));
+  error += static_cast<std::size_t>(
+      !private_node_handle_.getParamCached("publish_polygons", publish_polygons_));
+  error += static_cast<std::size_t>(
+      !private_node_handle_.getParamCached("publish_path_points", publish_path_points_));
+
+  return error;
+}
+
 void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs::PlanMowingPathGoalConstPtr& goal)
 {
   std::string boundary_frame = goal->property.header.frame_id;
 
   // EQ: Special use case override
-  private_node_handle_.getParamCached("stripe_angle", stripe_angle_);
-  private_node_handle_.getParamCached("stripe_separation", stripe_separation_);
+  fetchParams();
 
   ROS_INFO_STREAM("using Angle: " << stripe_angle_ << " and Spacing: " << stripe_separation_);
   if (enable_orientation_)
@@ -123,6 +128,7 @@ void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs:
     return;
   }
   std::vector<NavPoint> path;
+  std::vector<NavPoint> outline_path;
 
   auto preprocess_transform = preprocessPolygon(polygon, robot_position, stripe_angle_);
 
@@ -133,13 +139,19 @@ void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs:
   }
 
   Polygon fill_polygon;
-  if (!outline_planner_.addToPath(polygon, robot_position, path, fill_polygon))
+  if (!outline_planner_.addToPath(polygon, robot_position, outline_path, fill_polygon))
   {
     action_server_.setAborted(Server::Result(), std::string("Boustrophedon planner failed because "
                                                             "outline_layer_count "
                                                             "was too large for the boundary."));
     return;
   }
+
+  if (!outline_path.empty())
+  {
+    path.push_back(outline_path[0]);
+  }
+
   PolygonDecomposer polygon_decomposer{};
   // A print statement MUST be here, see issue #1586
   ROS_INFO_STREAM("Decomposing boundary polygon into sub-polygons...");
@@ -160,6 +172,12 @@ void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs:
   {
     striping_planner_.addReturnToStart(merged_polygon, start_position, robot_position, path);
   }
+
+  if (!outline_path.empty())
+  {
+    path.insert(path.end(), outline_path.begin(), outline_path.end());
+  }
+
   postprocessPolygonAndPath(preprocess_transform, polygon, path);
   if (publish_path_points_)  // if we care about visualizing the planned path in plotJuggler
   {
