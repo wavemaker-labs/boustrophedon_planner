@@ -66,6 +66,7 @@ bool OutlinePlanner::addInnerOutline(std::vector<NavPoint>& path, const Polygon&
                                      Polygon& innermost_polygon)
 {
   auto inner_polygons = CGAL::create_interior_skeleton_and_offset_polygons_2(offset, polygon);
+  std::size_t point_count = 0;
   if (inner_polygons.empty())
   {
     return false;
@@ -73,13 +74,14 @@ bool OutlinePlanner::addInnerOutline(std::vector<NavPoint>& path, const Polygon&
   for (const Point& p : inner_polygons.front()->container())
   {
     path.emplace_back(PointType::Outline, p);
+    ++point_count;
   }
 
   if (params_.outline_clockwise)
   {
     // reverse the outline path to go clockwise instead, so that
     // grass clippings go inside the boundary, not outside
-    std::reverse(path.end() - inner_polygons.size(), path.end());
+    std::reverse(path.end() - point_count, path.end());
   }
 
   // Close polygon by repeating first point

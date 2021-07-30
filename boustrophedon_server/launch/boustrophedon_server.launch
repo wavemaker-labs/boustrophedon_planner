@@ -3,13 +3,17 @@
     <arg name="outline_clockwise" default="true"/>
     <arg name="skip_outlines" default="false"/>
     <arg name="outline_layer_count" default="1"/>
-    <arg name="stripe_separation" default="1.5"/>
+    <arg name="stripe_separation" default="1.2"/>
     <arg name="intermediary_separation" default="0.0"/>
     <arg name="stripe_angle" default="0.0"/>
     <arg name="enable_stripe_angle_orientation" default="false" />
     <arg name="travel_along_boundary" default="true" />
     <arg name="allow_points_outside_boundary" default="false" />
-    <arg name="enable_half_y_turns" default="true" />
+    <arg name="stripes_before_outlines" default="true" />
+    <!-- Only choose one between half or full turns -->
+    <!-- Note: if enabling half-y turns, must have an outline_layer_count >= 1 -->
+    <arg name="enable_half_y_turns" default="false" />
+    <arg name="enable_full_u_turns" default="true" />
     <arg name="points_per_turn" default="10" />
     <arg name="turn_start_offset" default="0.0" />
     <arg name="publish_polygons" default="true"/>
@@ -26,8 +30,9 @@
         <param name="enable_stripe_angle_orientation" value="$(arg enable_stripe_angle_orientation)" />
         <param name="travel_along_boundary" value="$(arg travel_along_boundary)" />
         <param name="allow_points_outside_boundary" value="$(arg allow_points_outside_boundary)" />
-        <!-- Note: if enabling half-y turns, must have an outline_layer_count >= 1 -->
+        <param name="stripes_before_outlines" value="$(arg stripes_before_outlines)" />
         <param name="enable_half_y_turns" value="$(arg enable_half_y_turns)" />
+        <param name="enable_full_u_turns" value="$(arg enable_full_u_turns)" />
         <param name="points_per_turn" value="$(arg points_per_turn)" />
         <param name="turn_start_offset" value="$(arg turn_start_offset)" />
         <param name="publish_polygons" value="$(arg publish_polygons)"/>

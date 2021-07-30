@@ -47,7 +47,9 @@ private:
   double stripe_angle_{};
   bool travel_along_boundary_{};
   bool allow_points_outside_boundary_{};
+  bool stripes_before_outlines_{};
   bool enable_half_y_turns_{};
+  bool enable_full_u_turns_{};
   int points_per_turn_{};
   double turn_start_offset_{};
   tf::TransformListener transform_listener_{};

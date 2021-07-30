@@ -34,7 +34,7 @@ BoustrophedonPlannerServer::BoustrophedonPlannerServer()
   }
 
   striping_planner_.setParameters({ stripe_separation_, intermediary_separation_, travel_along_boundary_,
-                                    enable_half_y_turns_, points_per_turn_, turn_start_offset_ });
+                                    enable_half_y_turns_, enable_full_u_turns_, points_per_turn_, turn_start_offset_ });
   outline_planner_.setParameters(
       { repeat_boundary_, outline_clockwise_, skip_outlines_, outline_layer_count_, stripe_separation_ });
 
@@ -75,8 +75,11 @@ std::size_t BoustrophedonPlannerServer::fetchParams()
   error += static_cast<std::size_t>(
       !private_node_handle_.getParamCached("travel_along_boundary", travel_along_boundary_));
   error += static_cast<std::size_t>(!private_node_handle_.getParamCached("allow_points_outside_boundary", allow_points_outside_boundary_));
+  error += static_cast<std::size_t>(!private_node_handle_.getParamCached("stripes_before_outlines", stripes_before_outlines_));
   error += static_cast<std::size_t>(
       !private_node_handle_.getParamCached("enable_half_y_turns", enable_half_y_turns_));
+  error += static_cast<std::size_t>(
+      !private_node_handle_.getParamCached("enable_full_u_turns", enable_full_u_turns_));
   error += static_cast<std::size_t>(
       !private_node_handle_.getParamCached("points_per_turn", points_per_turn_));
   error += static_cast<std::size_t>(
@@ -149,7 +152,14 @@ void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs:
 
   if (!outline_path.empty())
   {
-    path.push_back(outline_path[0]);
+    if (stripes_before_outlines_)
+    {
+      path.push_back(outline_path[0]);
+    }
+    else
+    {
+      path.insert(path.end(), outline_path.begin(), outline_path.end());
+    }
   }
 
   PolygonDecomposer polygon_decomposer{};
@@ -173,7 +183,7 @@ void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs:
     striping_planner_.addReturnToStart(merged_polygon, start_position, robot_position, path);
   }
 
-  if (!outline_path.empty())
+  if (stripes_before_outlines_ && !outline_path.empty())
   {
     path.insert(path.end(), outline_path.begin(), outline_path.end());
   }

@@ -25,6 +25,9 @@ public:
     // Determines whether a half-y-turn arc will be added to the path between each stripe, to smooth out turning.
     bool enable_half_y_turn = true;
 
+    // Determines whether a full-u-turn arc will be added to the path between each stripe, to smooth out turning.
+    bool enable_full_u_turn = false;
+
     // Determines the amount of points in each arc of a half-y-turn.
     int points_per_turn = 20;
 
@@ -57,6 +60,7 @@ private:
   void addIntermediaryPoints(std::vector<Point>& intersection);
   void addBoundaryFollowingPoints(std::vector<NavPoint>& path, const Point& next_stripe_start, Polygon polygon);
   void addHalfYTurnPoints(std::vector<NavPoint>& path, const Point& next_stripe_start, StripingDirection& stripe_dir);
+  void addFullUTurnPoints(std::vector<NavPoint>& path, const Point& next_stripe_start, StripingDirection& stripe_dir);
   std::vector<NavPoint> generateDiscretizedArc(const Point& center_point, const float& radius, const float& start_rad,
                                                const float& end_rad, const int& num_points);
 
