@@ -1,0 +1,15 @@
+<launch>
+    <!-- Log settings -->
+    <env name="ROSCONSOLE_CONFIG_FILE"
+        value="$(find boustrophedon_example)/config/console.config"/>
+    <!-- tf dummy data publish-->
+    <node pkg="tf" type="static_transform_publisher" name="map_to_robot_tf"
+    args="0.0 5.0 0 0 0 0 map base_link 10" />
+    <!-- map test data -->
+    <arg name="field_file" default="$(find boustrophedon_example)/cutting/mowing/maps/helipad-L.yaml" />
+    <rosparam command="load" param="field_polygon"
+      file="$(arg field_file)" />
+    <!-- packages under test -->
+    <include file="$(find boustrophedon_server)/launch/boustrophedon_server.launch" />
+    <node pkg="boustrophedon_example" type="waypoint_extractor.py" name="waypoint_extractor" output="screen"/>
+</launch>

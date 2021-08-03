@@ -1,0 +1,12 @@
+- {easting:   0.0, fix_type: 5.0, northing:   0.0 }
+- {easting:  -2.7, fix_type: 5.0, northing:  -9.6 }
+- {easting: -14.3, fix_type: 5.0, northing:  -6.4 }
+- {easting: -16.9, fix_type: 5.0, northing: -15.9 }
+- {easting: -20.8, fix_type: 5.0, northing: -14.9 }
+- {easting: -15.5, fix_type: 5.0, northing:   4.0 }
+
+# Helipad at  69CF+M4 West Hills, Los Angeles, CA
+# deg = 15 -> Set this in field_publisher.launch
+# Start on the top right corner
+# L shape on the northwest side of the helipad
+# for the GPS coordinates to set mag declination: 34°13'18.1"N 118°37'37.9"W
