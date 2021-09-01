@@ -164,6 +164,11 @@ void PolygonDecomposer::createCells(const std::vector<Point>& critical_vertices,
     Point above_point;  // the intersection point just above the critical vertex
     Point below_point;  // the intersection point just below the critical vertex
 
+    if (intersection_points.empty())
+    {
+      // Warning: This might be saying something fishy if it's empty. Assert can be added here
+      continue;
+    }
     // if there is an above point, we make a new cell using above and vertex as endpoints
     if (findAbovePoint(above_point, vertex, intersection_points, polygon))
     {

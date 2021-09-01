@@ -270,15 +270,18 @@ bool approximatelyEqual(const Point a, const Point b, const double epsilon)
 
 bool approximatelyEqual(const double a, const double b, const double epsilon)
 {
-  return abs(a - b) <= ((abs(a) < abs(b) ? abs(b) : abs(a)) * epsilon);
+  const auto threshold = abs(a) < abs(b) ? abs(b) : abs(a);
+  return abs(a - b) <= ((threshold > 1.0 ? 1.0 : threshold) * epsilon);
 }
 
 bool definitelyGreaterThan(const double a, const double b, const double epsilon)
 {
-  return (a - b) > ((abs(a) < abs(b) ? abs(b) : abs(a)) * epsilon);
+  const auto threshold = abs(a) < abs(b) ? abs(b) : abs(a);
+  return (a - b) > ((threshold > 1.0 ? 1.0 : threshold) * epsilon);
 }
 
 bool definitelyLessThan(const double a, const double b, const double epsilon)
 {
-  return (b - a) > ((abs(a) < abs(b) ? abs(b) : abs(a)) * epsilon);
+  const auto threshold = abs(a) < abs(b) ? abs(b) : abs(a);
+  return (b - a) > ((threshold > 1.0 ? 1.0 : threshold) * epsilon);
 }

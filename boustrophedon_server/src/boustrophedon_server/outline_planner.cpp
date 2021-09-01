@@ -77,15 +77,17 @@ bool OutlinePlanner::addInnerOutline(std::vector<NavPoint>& path, const Polygon&
     ++point_count;
   }
 
+  // Close polygon by repeating first point
+  path.emplace_back(PointType::Outline, inner_polygons.front()->container().front());
+
   if (params_.outline_clockwise)
   {
+    // appended the first point of the outline to be reversed so it will be the same origin
+    ++point_count;
     // reverse the outline path to go clockwise instead, so that
     // grass clippings go inside the boundary, not outside
     std::reverse(path.end() - point_count, path.end());
   }
-
-  // Close polygon by repeating first point
-  path.emplace_back(PointType::Outline, inner_polygons.front()->container().front());
   innermost_polygon = *inner_polygons.front();
   return true;
 }

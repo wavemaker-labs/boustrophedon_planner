@@ -19,7 +19,7 @@
     <arg name="publish_polygons" default="true"/>
     <arg name="publish_path_points" default="true"/>
 
-    <node pkg="boustrophedon_server" type="boustrophedon_planner_server" name="boustrophedon_server"  output="screen" >
+    <node pkg="boustrophedon_server" type="boustrophedon_planner_server" name="boustrophedon_server" output="screen" respawn="true">
         <param name="repeat_boundary" value="$(arg repeat_boundary)"/>
         <param name="outline_clockwise" value="$(arg outline_clockwise)"/>
         <param name="skip_outlines" value="$(arg skip_outlines)"/>
