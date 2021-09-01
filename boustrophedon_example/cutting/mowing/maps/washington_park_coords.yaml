@@ -1,0 +1,9 @@
+- {easting: 0.00, fix_type: 5.0, northing: 0.00}
+- {easting: 0.00, fix_type: 5.0, northing: 75.0}
+- {easting: -26.00, fix_type: 5.0, northing: 75.00}
+- {easting: -26.00, fix_type: 5.0, northing: 0.00}
+
+# deg = 0 -> Set this in field_publisher.launch
+# Start on the bottom left of the park
+# Address: 1510 E Maple Ave, El Segundo, CA 90245
+# for the GPS coordinates to set mag declination: 33.92441478560982, -118.398665344922
