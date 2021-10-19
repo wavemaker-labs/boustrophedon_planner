@@ -1,5 +1,6 @@
 #include <CGAL/create_offset_polygons_2.h>
 #include <CGAL/Quotient.h>
+#include <CGAL/number_utils.h>
 #include "boustrophedon_server/striping_planner.h"
 #include "boustrophedon_server/cgal_utils.h"
 
@@ -121,9 +122,6 @@ void StripingPlanner::fillPolygon(const Polygon& polygon, std::vector<NavPoint>&
       }
       else if (params_.enable_full_u_turn)
       {
-        // use the full-u-turn behavior
-        addFullUTurnPoints(path, intersections.front(), stripe_dir);
-
         // the full-u-turn places its own stripe start points, so we don't want to place this one naively, unless there
         // isn't anything in the path
         if (path.empty())
@@ -131,10 +129,30 @@ void StripingPlanner::fillPolygon(const Polygon& polygon, std::vector<NavPoint>&
           // we still need to place the start point in this case
           path.emplace_back(PointType::StripeStart, intersections.front());
         }
+        else
+        {
+          auto edge_delta = 3.0 * params_.stripe_separation;
+
+          // do not make an arc turn if the difference between the two edge points make the plan go over the safety edge
+          // instead revert to following the boundary edge to get to the next point
+          if (definitelyGreaterThan(abs(path.back().point.y() - intersections.front().y()),
+                edge_delta, EPSILON) )
+          {
+            addBoundaryFollowingPoints(path, intersections.front(), polygon);
+
+            // place the points into the path
+            path.emplace_back(PointType::StripeStart, intersections.front());
+          }
+          else
+          {
+            // use the full-u-turn behavior
+            addFullUTurnPoints(path, intersections.front(), stripe_dir);
+          }
+        }
       }
       else
       {
-        // else use the simply boundary_following behavior
+        // else use the simple boundary_following behavior
         // follow the boundary to get to the next point
         addBoundaryFollowingPoints(path, intersections.front(), polygon);
 
@@ -411,26 +429,11 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
   {
     // we are going left to right
     // the current stripe is going down, so we need an arc from an UP stripe to a DOWN stripe
+    // the arc is centered between the two stripes
+    arc_center_point = Point((path.back().point.x() + next_stripe_start.x()) / 2.0,
+                             (path.back().point.y() + next_stripe_start.y()) / 2.0
+                              + params_.turn_start_offset - params_.stripe_separation / 2.0);
 
-    // figure out which one of path.back() or next_stripe_start is higher y-coordinate
-    if (definitelyGreaterThan(path.back().point.y(), next_stripe_start.y(), EPSILON))
-    {
-      // the previous stripe's end is higher than the current stripe's start.
-
-      // the arc is centered between the two stripes, referencing the y of the previous stripe
-      arc_center_point =
-            Point((path.back().point.x() + next_stripe_start.x()) / 2.0,
-                  path.back().point.y() + params_.turn_start_offset - params_.stripe_separation / 2.0);
-    }
-    else
-    {
-      // the previous stripe's end is lower or equal(ish) to the current stripe's start.
-
-      // the arc is centered between the two stripes, referencing the y of the next stripe
-      arc_center_point =
-          Point((path.back().point.x() + next_stripe_start.x()) / 2.0,
-                next_stripe_start.y() + params_.turn_start_offset - params_.stripe_separation / 2.0);
-    }
     // Common circular arc, starts from PI and ends at 0 (upper semicircle from left to right)
     arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation / 2.0, CGAL_PI, 0.0,
                                    params_.points_per_turn);
@@ -442,26 +445,11 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
   {
     // we are going left to right
     // the current stripe is going up, so we need an arc from a DOWN stripe to an UP stripe.
-
-    // figure out which one of path.back() or next_stripe_start is higher y-coordinate
-    if (definitelyLessThan(path.back().point.y(), next_stripe_start.y(), EPSILON))
-    {
-      // the previous stripe's end is lower than the current stripe's start.
-
-      // the arc is centered between the two stripes, referencing the y of the previous stripe
-      arc_center_point =
+    // the arc is centered between the two stripes
+    arc_center_point =
           Point((path.back().point.x() + next_stripe_start.x()) / 2.0,
-                path.back().point.y() - params_.turn_start_offset + params_.stripe_separation / 2.0);
-    }
-    else
-    {
-      // the previous stripe's end is higher or equal(ish) to the current stripe's start.
-
-      // the arc is centered between the two stripes, referencing the y of the next stripe
-      arc_center_point =
-          Point((path.back().point.x() + next_stripe_start.x()) / 2.0,
-                next_stripe_start.y() - params_.turn_start_offset + params_.stripe_separation / 2.0);
-    }
+                (path.back().point.y() + next_stripe_start.y()) / 2.0
+                 - params_.turn_start_offset + params_.stripe_separation / 2.0);
     // Common circular arc, starts from CGAL_PI and ends at CGAL_PI * 2 (lower semicircle, left to right)
     arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation / 2.0, CGAL_PI, CGAL_PI * 2,
                                    params_.points_per_turn);
@@ -473,26 +461,12 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
   {
     // we are going right to left
     // the current stripe is going down, so we need an arc from an UP stripe to a DOWN stripe
-
-    // figure out which one of path.back() or next_stripe_start is higher y-coordinate
-    if (definitelyGreaterThan(path.back().point.y(), next_stripe_start.y(), EPSILON))
-    {
-      // the previous stripe's end is higher than the current stripe's start.
-
-      // the arc is centered between the two stripes, referencing the y of the previous stripe
-      arc_center_point =
+    // the arc is centered between the two stripes
+    arc_center_point =
           Point((path.back().point.x() + next_stripe_start.x()) / 2.0,
-                path.back().point.y() + params_.turn_start_offset - params_.stripe_separation / 2.0);
-    }
-    else
-    {
-      // the previous stripe's end is lower or equal(ish) to the current stripe's start.
+                (path.back().point.y() + next_stripe_start.y()) / 2.0
+                 + params_.turn_start_offset - params_.stripe_separation / 2.0);
 
-      // the arc is centered between the two stripes, referencing the y of the next stripe
-      arc_center_point =
-          Point((path.back().point.x() + next_stripe_start.x()) / 2.0,
-                next_stripe_start.y() + params_.turn_start_offset - params_.stripe_separation / 2.0);
-    }
     // Common circular arc, starts from 0 and ends at CGAL_PI (upper semicircle, right to left)
     arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation / 2.0, 0.0, CGAL_PI,
                                    params_.points_per_turn);
@@ -504,26 +478,12 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
   {
     // we are going right to left
     // the current stripe is going up, so we need an arc from a DOWN stripe to an UP stripe.
-
-    // figure out which one of path.back() or next_stripe_start is higher y-coordinate
-    if (definitelyLessThan(path.back().point.y(), next_stripe_start.y(), EPSILON))
-    {
-      // the previous stripe's end is lower than the current stripe's start.
-
-      // the arc is centered between the two stripes, referencing the y of the previous stripe
-      arc_center_point =
+    // the arc is centered between the two stripes
+    arc_center_point =
           Point((path.back().point.x() + next_stripe_start.x()) / 2.0,
-                path.back().point.y() - params_.turn_start_offset + params_.stripe_separation / 2.0);
-    }
-    else
-    {
-      // the previous stripe's end is higher or equal(ish) to the current stripe's start.
+                (path.back().point.y() + next_stripe_start.y()) / 2.0
+                 - params_.turn_start_offset + params_.stripe_separation / 2.0);
 
-      // the arc is centered between the two stripes, referencing the y of the next stripe
-      arc_center_point =
-          Point((path.back().point.x() + next_stripe_start.x()) / 2.0,
-                next_stripe_start.y() - params_.turn_start_offset + params_.stripe_separation / 2.0);
-    }
     // Common circular arc, starts from CGAL_PI * 2 and ends at CGAL_PI (lower semicircle, right to left)
     arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation / 2.0, CGAL_PI * 2, CGAL_PI,
                                    params_.points_per_turn);
@@ -538,7 +498,6 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
     return;
   }
   // remove the previous stripe end point
-  // todo EQ: need to improve these erases by checking if the arc partially falls out of boundary
   path.erase(path.end());
 
   // insert the arc points onto the end of the path
