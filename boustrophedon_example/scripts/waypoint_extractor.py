@@ -11,8 +11,9 @@ import visualization_msgs.msg
 import yaml
 
 from actionlib import SimpleActionClient
-from geometry_msgs.msg import PolygonStamped, Point, Point32, Pose
+from geometry_msgs.msg import PolygonStamped, Point, Point32, Pose, PoseStamped
 from boustrophedon_msgs.msg import PlanMowingPathAction, PlanMowingPathActionGoal, PlanMowingPathActionResult
+from boustrophedon_msgs.srv import ConvertPlanToPath
 from math import sqrt, pow, atan2, sin, cos, pi
 from nav_msgs.msg import *
 from std_msgs.msg import ColorRGBA
@@ -156,22 +157,26 @@ def calculate_headings(path):
 
     return new_path
 
-
 def clean_dead_end_paths(path, types):
     """
     Compares headings between each point. If the next point causes a 180 turnaround,
-    removes that point and replaces the current point with the next heading in the
+    removes that next point and adjusts the current point to the next [different] heading in the
     resulting path.
     """
     new_path = []
     new_types = []
     skip_next = False
+    lookback_index = 0
 
     for index in range(int(len(path) - 1)):
-        if skip_next:
-            new_heading = get_heading(path[index-1], path[index+1])
-            new_path.append(list(path[index-1][:2]) + [new_heading])
-            skip_next = False
+        if skip_next: # the current index is skipped
+            # keep skipping if the next point is still causing a turnaround
+            if np.isclose(path[index][2], path[index+1][2]):
+                lookback_index = lookback_index + 1
+            else: # we can add the next valid point
+                new_heading = get_heading(path[index-lookback_index], path[index+1])
+                new_path.append(list(path[index-lookback_index][:2]) + [new_heading])
+                skip_next = False
             continue
 
         heading_diff = path[index+1][2] - path[index][2]
@@ -181,15 +186,25 @@ def clean_dead_end_paths(path, types):
         if np.isclose(heading_diff % pi, 0) and not np.isclose(heading_diff, 0):
             # print "at index:", index, "found a turnaround"
             skip_next = True
+            lookback_index = 1
+            # traceback all colinear points leading to the current one
+            for reverse_idx in range(index - 1, 0, -1):
+                if np.isclose(path[index][2], path[reverse_idx][2]):
+                    lookback_index = lookback_index + 1
+                    new_path.pop()
+                else:
+                    break
         else:
             # if next point is same or is not a turnaround, should be left as-is
             new_path.append(path[index])
+            lookback_index = 0
 
         new_types.append(types[index])
 
     # print(new_path)
 
     return (new_path, new_types)
+
 
 def clean_colinear_points_in_path(path):
 
@@ -230,19 +245,34 @@ def point_is_within_previous_pathline(point_to_check, point1, point2):
     return (point_to_check[1] - point1[1]) == ( (point2[1] - point1[1]) / (point2[0] - point1[0]) ) * (point_to_check[0] - point1[0])
 
 
-def send_polygon(polygon, robot_pose):
+def read_point_dict(point_info):
+    (easting, northing) = (point_info['easting'], point_info['northing'])
+    return (float(easting), float(northing))
+
+def populate_plan_path_input(polygon):
+
     polygon_pub = PolygonStamped()
     for point in polygon:
         polygon_pub.polygon.points.append(Point32(x=point[0], y=point[1], z=0.0))
-
     pub_node = PlanMowingPathActionGoal()
+
+    # EQ: fix the start to first point of poly
+    robot_pose = PoseStamped()
+    robot_pose.pose.position.x = polygon[0][0]
+    robot_pose.pose.position.y = polygon[0][1]
+    robot_pose.pose.orientation.w = 1.0
 
     pub_node.goal.property.polygon = polygon_pub.polygon
     pub_node.goal.property.header.frame_id = "map"
     pub_node.goal.property.header.stamp = rospy.Time.now()
-    pub_node.goal.robot_position.pose = robot_pose
-    pub_node.goal.robot_position.header.frame_id = "base_link"
+    pub_node.goal.robot_position.pose = robot_pose.pose
+    pub_node.goal.robot_position.header.frame_id = "map"
     pub_node.goal.property.header.stamp = rospy.Time.now()
+
+    return pub_node
+
+def send_polygon(polygon, robot_pose):
+    pub_node = populate_plan_path_input(polygon)
     pub.publish(pub_node)
     print "sent to coverage planner"
 
@@ -335,7 +365,6 @@ def parse_striping_points(striping_points):
     #
     # Check output
     #
-    visually_trace_waypoint(points, types, slow=True)
 
     return (points, types)
 
@@ -354,18 +383,7 @@ def save_to_csv(points, types=[]):
 
 
 def send_polygon_blocking(polygon, robot_pose):
-    polygon_pub = PolygonStamped()
-    for point in polygon:
-        polygon_pub.polygon.points.append(Point32(x=point[0], y=point[1], z=0.0))
-
-    pub_node = PlanMowingPathActionGoal()
-
-    pub_node.goal.property.polygon = polygon_pub.polygon
-    pub_node.goal.property.header.frame_id = "map"
-    pub_node.goal.property.header.stamp = rospy.Time.now()
-    pub_node.goal.robot_position.pose = robot_pose
-    pub_node.goal.robot_position.header.frame_id = "base_link"
-    pub_node.goal.property.header.stamp = rospy.Time.now()
+    pub_node = populate_plan_path_input(polygon)
 
     boustro_planner = SimpleActionClient('plan_path', PlanMowingPathAction)
     boustro_planner.wait_for_server()
@@ -376,7 +394,7 @@ def send_polygon_blocking(polygon, robot_pose):
     while (len(result.plan.points) == 0):
         result = boustro_planner.get_result()
 
-    print(parse_striping_points(result.plan.points))
+    return parse_striping_points(result.plan.points)
 
 
 def result_callback(data):
@@ -403,7 +421,7 @@ def visually_trace_waypoint(points, types, slow=False):
     x_plt = []
     y_plt = []
     type_plt = []
-
+    plt.clf()
     visualize_polygon(polygon)
 
     plt.subplot(1, 2, 2)
@@ -438,7 +456,9 @@ def visually_trace_waypoint(points, types, slow=False):
 
     if (not slow):
         # plt.scatter(y_plt, x_plt, s=[(4-x)*100 for x in type_plt], c=type_plt, cmap='rainbow')
-        plt.show()
+        plt.title("direction: " + str(cut_direction) + " deg")
+        plt.show(block=False)
+        plt.pause(0.5)
 
 def visualize_path_as_marker(path, path_status):
     """
@@ -522,16 +542,28 @@ if __name__ == '__main__':
     # plt.show()
 
     # cut_direction = rospy.get_param("~cut_direction", 0.0)
-    cut_direction = 15.0
+    cut_direction = 0.0
     rospy.set_param("/boustrophedon_server/stripe_angle", cut_direction * pi / 180.0)
 
     print "successfully read map. sending polygon.."
     robot_pose = get_robot_pose()
-    send_polygon(polygon, robot_pose)
+    (points, types) = send_polygon_blocking(polygon, robot_pose)
+    visually_trace_waypoint(points, types)
 
     while not rospy.is_shutdown():
         path_status = ['not_visited']*(len(points))
         visualize_path_as_marker(points, path_status)
+
+        cut_direction = cut_direction + 1.0
+        if cut_direction > 179.0:
+            cut_direction = 0.
+        rospy.set_param("/boustrophedon_server/stripe_angle", cut_direction * pi / 180.0)
+
+        print "successfully read map. sending polygon.."
+        robot_pose = get_robot_pose()
+        (points, types) = send_polygon_blocking(polygon, robot_pose)
+        visually_trace_waypoint(points, types, slow=False)
+
         r.sleep()
 
     # polygon = read_field_file(load_yaml_file())

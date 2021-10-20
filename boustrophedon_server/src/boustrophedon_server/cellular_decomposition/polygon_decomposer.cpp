@@ -1,4 +1,5 @@
 #include <ros/assert.h>
+#include <ros/console.h>
 #include "boustrophedon_server/cellular_decomposition/polygon_decomposer.h"
 
 using namespace bcd;
@@ -222,6 +223,17 @@ bool PolygonDecomposer::findAbovePoint(Point& above, const Point& critical_point
       {
         points.insert(it + 1, critical_point);
         break;
+      }
+    }
+    if (points.size() < 2)
+    {
+      if (points[0].y() < critical_point.y())
+      {
+        points.insert(it, critical_point);
+      }
+      else
+      {
+        points.push_back(critical_point);
       }
     }
 

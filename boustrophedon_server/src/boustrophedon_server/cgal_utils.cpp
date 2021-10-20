@@ -150,14 +150,22 @@ void insertPointAlongEdge(const Point& point, Polygon& polygon)
 
   // the point intersects an edge, we need to find that edge
   auto edge_iterator = polygon.edges_begin();
+  double least_square_distance = 1e9;
+  auto edge_iterator_best = edge_iterator;
   for (; edge_iterator != polygon.edges_end(); edge_iterator++)
   {
     Segment edge = *edge_iterator;
     // check the point's distance to the edge - it might be off by a little bit because of floating point error
-    if (definitelyLessThan(CGAL::squared_distance(point, edge), EPSILON, EPSILON))
+    auto current_squared_dist = CGAL::squared_distance(point, edge);
+    if (definitelyLessThan(current_squared_dist, EPSILON, EPSILON))
     {
       // we found the edge!
       break;
+    }
+    if (current_squared_dist < least_square_distance)
+    {
+      least_square_distance = current_squared_dist;
+      edge_iterator_best = edge_iterator;
     }
   }
 
@@ -165,6 +173,9 @@ void insertPointAlongEdge(const Point& point, Polygon& polygon)
   if (edge_iterator == polygon.edges_end())
   {
     std::cout << "couldn't find the edge that point " << point.x() << " , " << point.y() << " lies on!" << std::endl;
+    // this is just a fall back, and must not be too far off a polygon's edge
+    // we should install an assertion here that ensures the LSD is near zero despite being >= EPSILON
+    edge_iterator = edge_iterator_best;
   }
 
   // now, we need to modify the polygon such that we have two edges from source -> point and point -> target

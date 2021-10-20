@@ -6,7 +6,7 @@
     <node pkg="tf" type="static_transform_publisher" name="map_to_robot_tf"
     args="0.0 5.0 0 0 0 0 map base_link 10" />
     <!-- map test data -->
-    <arg name="field_file" default="$(find boustrophedon_example)/cutting/mowing/maps/helipad-L.yaml" />
+    <arg name="field_file" default="$(find boustrophedon_example)/cutting/mowing/maps/helipad_section_B.yaml" />
     <rosparam command="load" param="field_polygon"
       file="$(arg field_file)" />
     <!-- packages under test -->
