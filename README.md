@@ -13,6 +13,12 @@ and returns a `StripingPlan` message which contains a list of waypoints to strip
  2. If you get a build error regarding **CGAL** when running a catkin_make command then use `sudo apt-get install libcgal-dev` to intall the rosparams_shortcuts. Refer [this](https://www.cgal.org/download/linux.html) for more info.
 
 ## Changelog
+- November 11, 2021:
+  - Re-fetch stripe_separation and angle parameters for live updating while sending path goals.
+
+- October 20, 2021:
+  - Some robustness fixes to support different direction inputs.
+  - Added a boundary-following fallback condition when adding "u-turns" in order to avoid planning shortcuts and exceeding safety boundaries.
 
 - July 30, 2021:
   - Added a full arc U-turn option.

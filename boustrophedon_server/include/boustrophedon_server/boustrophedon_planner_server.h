@@ -67,6 +67,7 @@ private:
   void publishPathPoints(const std::vector<NavPoint>& path) const;
   void publishPolygonPoints(const Polygon& poly) const;
   std::size_t fetchParams();
+  std::size_t fetchParamsLive();
 };
 
 #endif  // SRC_BOUSTROPHEDON_PLANNER_SERVER_H
