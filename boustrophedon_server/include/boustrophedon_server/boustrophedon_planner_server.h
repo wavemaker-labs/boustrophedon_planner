@@ -7,7 +7,9 @@
 #include <tf/transform_datatypes.h>
 
 #include <boustrophedon_msgs/PlanMowingPathAction.h>
+#include <boustrophedon_msgs/PlanMowingPathParamAction.h>
 #include <boustrophedon_msgs/ConvertPlanToPath.h>
+#include <boustrophedon_msgs/PlanParameters.h>
 #include <nav_msgs/Odometry.h>
 
 #include "boustrophedon_server/cgal_utils.h"
@@ -21,13 +23,16 @@ public:
   BoustrophedonPlannerServer();
 
   void executePlanPathAction(const boustrophedon_msgs::PlanMowingPathGoalConstPtr& goal);
+  void configAndExecutePlanPathAction(const boustrophedon_msgs::PlanMowingPathParamGoalConstPtr& goal);
 
 private:
   using Server = actionlib::SimpleActionServer<boustrophedon_msgs::PlanMowingPathAction>;
+  using ServerWithParam = actionlib::SimpleActionServer<boustrophedon_msgs::PlanMowingPathParamAction>;
 
   ros::NodeHandle node_handle_;
   ros::NodeHandle private_node_handle_;
   Server action_server_;
+  ServerWithParam action_server_with_param_;
   ros::ServiceServer conversion_server_;
   ros::Publisher initial_polygon_publisher_;
   ros::Publisher preprocessed_polygon_publisher_;
@@ -55,6 +60,7 @@ private:
   tf::TransformListener transform_listener_{};
   bool publish_polygons_{};
   bool publish_path_points_{};
+  std::string last_status_{};
 
   bool convertStripingPlanToPath(boustrophedon_msgs::ConvertPlanToPath::Request& request,
                                  boustrophedon_msgs::ConvertPlanToPath::Response& response);
@@ -67,7 +73,9 @@ private:
   void publishPathPoints(const std::vector<NavPoint>& path) const;
   void publishPolygonPoints(const Polygon& poly) const;
   std::size_t fetchParams();
-  std::size_t fetchParamsLive();
+  std::size_t fetchParamsLive(const boustrophedon_msgs::PlanParameters &params);
+  void updateParamsInternal(const boustrophedon_msgs::PlanParameters &params);
+  std::vector<NavPoint> executePlanPathInternal(const boustrophedon_msgs::PlanMowingPathGoal& goal);
 };
 
 #endif  // SRC_BOUSTROPHEDON_PLANNER_SERVER_H

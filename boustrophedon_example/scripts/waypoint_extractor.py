@@ -13,6 +13,7 @@ import yaml
 from actionlib import SimpleActionClient
 from geometry_msgs.msg import PolygonStamped, Point, Point32, Pose, PoseStamped
 from boustrophedon_msgs.msg import PlanMowingPathAction, PlanMowingPathActionGoal, PlanMowingPathActionResult
+from boustrophedon_msgs.msg import PlanParameters, PlanMowingPathParamAction, PlanMowingPathParamActionGoal, PlanMowingPathParamActionResult
 from boustrophedon_msgs.srv import ConvertPlanToPath
 from math import sqrt, pow, atan2, sin, cos, pi
 from nav_msgs.msg import *
@@ -249,12 +250,59 @@ def read_point_dict(point_info):
     (easting, northing) = (point_info['easting'], point_info['northing'])
     return (float(easting), float(northing))
 
+def fetch_params():
+    loaded_params = PlanParameters()
+    if rospy.has_param('/boustrophedon_server/repeat_boundary'):
+        loaded_params.repeat_boundary = rospy.get_param('/boustrophedon_server/repeat_boundary')
+    if rospy.has_param('/boustrophedon_server/outline_clockwise'):
+        loaded_params.outline_clockwise = rospy.get_param('/boustrophedon_server/outline_clockwise')
+    if rospy.has_param('/boustrophedon_server/skip_outlines'):
+        loaded_params.skip_outlines = rospy.get_param('/boustrophedon_server/skip_outlines')
+    if rospy.has_param('/boustrophedon_server/outline_layer_count'):
+        loaded_params.outline_layer_count = rospy.get_param('/boustrophedon_server/outline_layer_count')
+    # note name diff: cut_spacing <-> stripe_separation
+    if rospy.has_param('/boustrophedon_server/stripe_separation'):
+        loaded_params.cut_spacing = rospy.get_param('/boustrophedon_server/stripe_separation')
+    if rospy.has_param('/boustrophedon_server/intermediary_separation'):
+        loaded_params.intermediary_separation = rospy.get_param('/boustrophedon_server/intermediary_separation')
+    # note name diff: cut_angle_radians <-> stripe_angle
+    if rospy.has_param('/boustrophedon_server/stripe_angle'):
+        loaded_params.cut_angle_radians = rospy.get_param('/boustrophedon_server/stripe_angle')
+    if rospy.has_param('/boustrophedon_server/enable_stripe_angle_orientation'):
+        loaded_params.enable_stripe_angle_orientation = rospy.get_param('/boustrophedon_server/enable_stripe_angle_orientation')
+    if rospy.has_param('/boustrophedon_server/travel_along_boundary'):
+        loaded_params.travel_along_boundary = rospy.get_param('/boustrophedon_server/travel_along_boundary')
+    if rospy.has_param('/boustrophedon_server/allow_points_outside_boundary'):
+        loaded_params.allow_points_outside_boundary = rospy.get_param('/boustrophedon_server/allow_points_outside_boundary')
+    if rospy.has_param('/boustrophedon_server/stripes_before_outlines'):
+        loaded_params.stripes_before_outlines = rospy.get_param('/boustrophedon_server/stripes_before_outlines')
+    if rospy.has_param('/boustrophedon_server/points_per_turn'):
+        loaded_params.points_per_turn = rospy.get_param('/boustrophedon_server/points_per_turn')
+    if rospy.has_param('/boustrophedon_server/turn_start_offset'):
+        loaded_params.turn_start_offset = rospy.get_param('/boustrophedon_server/turn_start_offset')
+
+    # selecting the right turn type based on params:
+    if rospy.has_param('/boustrophedon_server/enable_full_u_turns'):
+        u_turn_enabled = rospy.get_param('/boustrophedon_server/enable_full_u_turns')
+    if rospy.has_param('/boustrophedon_server/enable_half_y_turns'):
+        half_y_enabled = rospy.get_param('/boustrophedon_server/enable_half_y_turns')
+
+    if u_turn_enabled:
+        loaded_params.turn_type = PlanParameters.TURN_FULL_U
+    elif half_y_enabled:
+        loaded_params.turn_type = PlanParameters.TURN_HALF_Y
+    else:
+        loaded_params.turn_type = PlanParameters.TURN_BOUNDARY
+
+    return loaded_params
+
+
 def populate_plan_path_input(polygon):
 
     polygon_pub = PolygonStamped()
     for point in polygon:
         polygon_pub.polygon.points.append(Point32(x=point[0], y=point[1], z=0.0))
-    pub_node = PlanMowingPathActionGoal()
+    pub_node = PlanMowingPathParamActionGoal()
 
     # EQ: fix the start to first point of poly
     robot_pose = PoseStamped()
@@ -268,6 +316,9 @@ def populate_plan_path_input(polygon):
     pub_node.goal.robot_position.pose = robot_pose.pose
     pub_node.goal.robot_position.header.frame_id = "map"
     pub_node.goal.property.header.stamp = rospy.Time.now()
+
+    params = fetch_params()
+    pub_node.goal.parameters = params
 
     return pub_node
 
@@ -385,7 +436,7 @@ def save_to_csv(points, types=[]):
 def send_polygon_blocking(polygon, robot_pose):
     pub_node = populate_plan_path_input(polygon)
 
-    boustro_planner = SimpleActionClient('plan_path', PlanMowingPathAction)
+    boustro_planner = SimpleActionClient('config_and_plan_path', PlanMowingPathParamAction)
     boustro_planner.wait_for_server()
     boustro_planner.send_goal(pub_node.goal)
     boustro_planner.wait_for_result()
@@ -531,8 +582,8 @@ if __name__ == '__main__':
 
     tf_buffer = tf2_ros.Buffer()
     tf_listener = tf2_ros.TransformListener(tf_buffer)
-    pub = rospy.Publisher("/plan_path/goal", PlanMowingPathActionGoal, queue_size=1, latch=True)
-    rospy.Subscriber("/plan_path/result", PlanMowingPathActionResult, result_callback)
+    pub = rospy.Publisher("/config_and_plan_path/goal", PlanMowingPathParamActionGoal, queue_size=1, latch=True)
+    rospy.Subscriber("/config_and_plan_path/result", PlanMowingPathParamActionResult, result_callback)
     r = rospy.Rate(10)
 
     if rospy.has_param('/field_polygon'):
@@ -542,12 +593,13 @@ if __name__ == '__main__':
     # plt.show()
 
     # cut_direction = rospy.get_param("~cut_direction", 0.0)
-    cut_direction = 0.0
+    cut_direction = 16
     rospy.set_param("/boustrophedon_server/stripe_angle", cut_direction * pi / 180.0)
 
     print "successfully read map. sending polygon.."
     robot_pose = get_robot_pose()
     (points, types) = send_polygon_blocking(polygon, robot_pose)
+    # Add True param to trace the path one by one
     visually_trace_waypoint(points, types)
 
     while not rospy.is_shutdown():
@@ -562,7 +614,7 @@ if __name__ == '__main__':
         print "successfully read map. sending polygon.."
         robot_pose = get_robot_pose()
         (points, types) = send_polygon_blocking(polygon, robot_pose)
-        visually_trace_waypoint(points, types, slow=False)
+        visually_trace_waypoint(points, types)
 
         r.sleep()
 

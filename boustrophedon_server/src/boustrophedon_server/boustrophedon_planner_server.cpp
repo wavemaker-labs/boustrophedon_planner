@@ -6,12 +6,15 @@ BoustrophedonPlannerServer::BoustrophedonPlannerServer()
   : private_node_handle_("~")
   , action_server_(node_handle_, "plan_path", boost::bind(&BoustrophedonPlannerServer::executePlanPathAction, this, _1),
                    false)
+  , action_server_with_param_(node_handle_, "config_and_plan_path", boost::bind(&BoustrophedonPlannerServer::configAndExecutePlanPathAction, this, _1),
+                   false)
   , conversion_server_{ node_handle_.advertiseService("convert_striping_plan_to_path",
                                                       &BoustrophedonPlannerServer::convertStripingPlanToPath, this) }
 {
   std::size_t error = fetchParams();
 
   action_server_.start();
+  action_server_with_param_.start();
 
   if (publish_polygons_)
   {
@@ -99,60 +102,119 @@ std::size_t BoustrophedonPlannerServer::fetchParams()
 }
 
 
-std::size_t BoustrophedonPlannerServer::fetchParamsLive()
+void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::PlanParameters &params)
 {
-  std::size_t error = 0;
-  error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "stripe_separation", stripe_separation_));
-  error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "stripe_angle", stripe_angle_));
-  rosparam_shortcuts::shutdownIfError("plan_path", error);
+  stripe_separation_ = params.cut_spacing;
+  stripe_angle_ = params.cut_angle_radians;
+  stripes_before_outlines_ = params.stripes_before_outlines;
+  enable_orientation_ = params.enable_stripe_angle_orientation;
+  intermediary_separation_ = params.intermediary_separation;
+  travel_along_boundary_ = params.travel_along_boundary;
+  points_per_turn_ = params.points_per_turn;
+  turn_start_offset_ = params.turn_start_offset;
+  repeat_boundary_ = params.repeat_boundary;
+  outline_clockwise_ = params.outline_clockwise;
+  skip_outlines_ = params.skip_outlines;
+  outline_layer_count_ = params.outline_layer_count;
+
+  switch (params.turn_type)
+  {
+    case boustrophedon_msgs::PlanParameters::TURN_FULL_U:
+      enable_half_y_turns_ = false;
+      enable_full_u_turns_ = true;
+      break;
+    case boustrophedon_msgs::PlanParameters::TURN_HALF_Y:
+      enable_half_y_turns_ = true;
+      enable_full_u_turns_ = false;
+      break;
+    case boustrophedon_msgs::PlanParameters::TURN_BOUNDARY:
+      enable_half_y_turns_ = false;
+      enable_full_u_turns_ = false;
+      break;
+  }
 
   striping_planner_.setParameters({ stripe_separation_, intermediary_separation_, travel_along_boundary_,
                                     enable_half_y_turns_, enable_full_u_turns_, points_per_turn_, turn_start_offset_ });
   outline_planner_.setParameters(
       { repeat_boundary_, outline_clockwise_, skip_outlines_, outline_layer_count_, stripe_separation_ });
+}
 
-  return error;
+void BoustrophedonPlannerServer::configAndExecutePlanPathAction(const boustrophedon_msgs::PlanMowingPathParamGoalConstPtr& goalWithParams)
+{
+  boustrophedon_msgs::PlanMowingPathGoal goal;
+  goal.property = goalWithParams->property;
+  goal.robot_position = goalWithParams->robot_position;
+
+  updateParamsInternal(goalWithParams->parameters);
+
+  std::string boundary_frame = goalWithParams->property.header.frame_id;
+
+  auto path = executePlanPathInternal(goal);
+  auto result = toResult(std::move(path), boundary_frame);
+
+  if (last_status_.empty())
+  {
+    boustrophedon_msgs::PlanMowingPathParamResult result_with_param;
+    result_with_param.plan = result.plan;
+    action_server_with_param_.setSucceeded(result_with_param);
+  }
+  else
+  {
+    action_server_with_param_.setAborted(ServerWithParam::Result(), last_status_);
+  }
+
+  //todo: return-update to rosparam server. For now the action client holds the responsibility (not this callback)
 }
 
 void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs::PlanMowingPathGoalConstPtr& goal)
 {
   std::string boundary_frame = goal->property.header.frame_id;
+  auto path = executePlanPathInternal(*goal);
+  auto result = toResult(std::move(path), boundary_frame);
+  if (last_status_.empty())
+  {
+    action_server_.setSucceeded(result);
+  }
+  else
+  {
+    action_server_.setAborted(Server::Result(), last_status_);
+  }
+}
 
-  // EQ: Special use case override
-  fetchParamsLive();
+std::vector<NavPoint> BoustrophedonPlannerServer::executePlanPathInternal(const boustrophedon_msgs::PlanMowingPathGoal& goal)
+{
+  // std::string boundary_frame = goal->property.header.frame_id;
+  last_status_.clear();
 
   ROS_INFO_STREAM("using Angle: " << stripe_angle_ * 180 / 3.14159265359 << " and Spacing: " << stripe_separation_);
   if (enable_orientation_)
   {
-    stripe_angle_ = getStripeAngleFromOrientation(goal->robot_position);
+    stripe_angle_ = getStripeAngleFromOrientation(goal.robot_position);
   }
 
-  Polygon polygon = fromBoundary(goal->property);
+  Polygon polygon = fromBoundary(goal.property);
   if (!checkPolygonIsValid(polygon))
   {
-    action_server_.setAborted(Server::Result(), std::string("Boustrophedon planner does not work for polygons of "
-                                                            "size "
-                                                            "< 3."));
-    return;
+    last_status_ = std::string("Boustrophedon planner does not work for polygons of "
+                               "size "
+                               "< 3.");
+    return {};
   }
   if (!polygon.is_simple())
   {
-    action_server_.setAborted(Server::Result(), std::string("Boustrophedon planner only works for simple (non "
-                                                            "self-intersecting) polygons."));
-    return;
+    last_status_ = std::string("Boustrophedon planner only works for simple (non "
+                               "self-intersecting) polygons.");
+    return {};
   }
   Point robot_position;
   try
   {
-    robot_position = fromPositionWithFrame(goal->robot_position, goal->property.header.frame_id);
+    robot_position = fromPositionWithFrame(goal.robot_position, goal.property.header.frame_id);
   }
   catch (const tf::TransformException& ex)
   {
-    action_server_.setAborted(Server::Result(),
-                              std::string("Boustrophedon planner failed with a tf exception: ") + ex.what());
-    return;
+    last_status_ = std::string("Boustrophedon planner failed with a tf exception: ") + ex.what();
+    return {};
   }
   std::vector<NavPoint> path;
   std::vector<NavPoint> outline_path;
@@ -161,17 +223,17 @@ void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs:
 
   if (publish_polygons_)
   {
-    initial_polygon_publisher_.publish(goal->property);
+    initial_polygon_publisher_.publish(goal.property);
     preprocessed_polygon_publisher_.publish(convertCGALPolygonToMsg(polygon));
   }
 
   Polygon fill_polygon;
   if (!outline_planner_.addToPath(polygon, robot_position, outline_path, fill_polygon))
   {
-    action_server_.setAborted(Server::Result(), std::string("Boustrophedon planner failed because "
-                                                            "outline_layer_count "
-                                                            "was too large for the boundary."));
-    return;
+    last_status_ = std::string("Boustrophedon planner failed because "
+                               "outline_layer_count "
+                               "was too large for the boundary.");
+    return {};
   }
 
   if (!outline_path.empty())
@@ -218,8 +280,8 @@ void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs:
     publishPathPoints(path);
     publishPolygonPoints(polygon);
   }
-  auto result = toResult(std::move(path), boundary_frame);
-  action_server_.setSucceeded(result);
+  // auto result = toResult(std::move(path), boundary_frame);
+  return path;
 }
 
 boustrophedon_msgs::PlanMowingPathResult BoustrophedonPlannerServer::toResult(std::vector<NavPoint>&& path,

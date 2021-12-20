@@ -14,6 +14,7 @@ find_package(catkin REQUIRED
 add_message_files(
   DIRECTORY msg
   FILES
+  PlanParameters.msg
   StripingPoint.msg
   StripingPlan.msg
 )
@@ -27,6 +28,7 @@ add_action_files(
   DIRECTORY action
   FILES
   PlanMowingPath.action
+  PlanMowingPathParam.action
 )
 
 generate_messages(
