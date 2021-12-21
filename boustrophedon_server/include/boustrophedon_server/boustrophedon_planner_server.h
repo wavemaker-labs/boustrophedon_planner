@@ -38,25 +38,31 @@ private:
   ros::Publisher preprocessed_polygon_publisher_;
   ros::Publisher path_points_publisher_;
   ros::Publisher polygon_points_publisher_;
+  ros::Subscriber params_subscriber_;
 
   StripingPlanner striping_planner_;
   OutlinePlanner outline_planner_;
 
-  bool repeat_boundary_{};
-  bool outline_clockwise_{};
-  bool skip_outlines_{};
-  bool enable_orientation_{};
-  int outline_layer_count_{};
-  double stripe_separation_{};
-  double intermediary_separation_{};
-  double stripe_angle_{};
-  bool travel_along_boundary_{};
-  bool allow_points_outside_boundary_{};
-  bool stripes_before_outlines_{};
-  bool enable_half_y_turns_{};
-  bool enable_full_u_turns_{};
-  int points_per_turn_{};
-  double turn_start_offset_{};
+  std::string parameters_topic_{};
+
+  struct Parameters {
+    bool repeat_boundary_{};
+    bool outline_clockwise_{};
+    bool skip_outlines_{};
+    bool enable_orientation_{};
+    int outline_layer_count_{};
+    double stripe_separation_{};
+    double intermediary_separation_{};
+    double stripe_angle_{};
+    bool travel_along_boundary_{};
+    bool allow_points_outside_boundary_{};
+    bool stripes_before_outlines_{};
+    bool enable_half_y_turns_{};
+    bool enable_full_u_turns_{};
+    int points_per_turn_{};
+    double turn_start_offset_{};
+  } params_;
+
   tf::TransformListener transform_listener_{};
   bool publish_polygons_{};
   bool publish_path_points_{};
@@ -75,7 +81,7 @@ private:
   std::size_t fetchParams();
   std::size_t fetchParamsLive(const boustrophedon_msgs::PlanParameters &params);
   void updateParamsInternal(const boustrophedon_msgs::PlanParameters &params);
-  std::vector<NavPoint> executePlanPathInternal(const boustrophedon_msgs::PlanMowingPathGoal& goal);
+  std::vector<NavPoint> executePlanPathInternal(const boustrophedon_msgs::PlanMowingPathGoal& goal, Parameters params);
 };
 
 #endif  // SRC_BOUSTROPHEDON_PLANNER_SERVER_H

@@ -127,7 +127,7 @@ def get_heading(start_point, end_point):
     if np.isclose(dx, 0.0):
         dx = 0
     heading = atan2(dy, dx)
-    print "heading calc:", dy, dx, heading
+    # print "heading calc:", dy, dx, heading
 
     return heading
 
@@ -302,7 +302,7 @@ def populate_plan_path_input(polygon):
     polygon_pub = PolygonStamped()
     for point in polygon:
         polygon_pub.polygon.points.append(Point32(x=point[0], y=point[1], z=0.0))
-    pub_node = PlanMowingPathParamActionGoal()
+    pub_node = PlanMowingPathActionGoal()
 
     # EQ: fix the start to first point of poly
     robot_pose = PoseStamped()
@@ -318,7 +318,9 @@ def populate_plan_path_input(polygon):
     pub_node.goal.property.header.stamp = rospy.Time.now()
 
     params = fetch_params()
-    pub_node.goal.parameters = params
+    # pub_node.goal.parameters = params
+    param_pub.publish(params)
+    rospy.loginfo("Published angle: " + str(params.cut_angle_radians * 180 / pi ))
 
     return pub_node
 
@@ -423,6 +425,8 @@ def parse_striping_points(striping_points):
 def save_to_csv(points, types=[]):
     if not len(types) == len(points):
         types = [0] * len(points)
+    if not os.path.isdir(file_dir + '/waypoints/'):
+        os.makedirs(file_dir + '/waypoints/')
     file = open(file_full_path, 'w')
     for index, point in enumerate(points):
         # print point[0], point[1], point[2], types[index]
@@ -436,7 +440,7 @@ def save_to_csv(points, types=[]):
 def send_polygon_blocking(polygon, robot_pose):
     pub_node = populate_plan_path_input(polygon)
 
-    boustro_planner = SimpleActionClient('config_and_plan_path', PlanMowingPathParamAction)
+    boustro_planner = SimpleActionClient('plan_path', PlanMowingPathAction)
     boustro_planner.wait_for_server()
     boustro_planner.send_goal(pub_node.goal)
     boustro_planner.wait_for_result()
@@ -489,7 +493,7 @@ def visually_trace_waypoint(points, types, slow=False):
         y_plt.append(point[1])
         type_plt.append(types[index])
 
-        print "plotting:", point[0], point[1], types[index]
+        # print "plotting:", point[0], point[1], types[index]
 
         line_plt = plt.Line2D(y_plt[-2:], x_plt[-2:])
 
@@ -582,8 +586,11 @@ if __name__ == '__main__':
 
     tf_buffer = tf2_ros.Buffer()
     tf_listener = tf2_ros.TransformListener(tf_buffer)
-    pub = rospy.Publisher("/config_and_plan_path/goal", PlanMowingPathParamActionGoal, queue_size=1, latch=True)
-    rospy.Subscriber("/config_and_plan_path/result", PlanMowingPathParamActionResult, result_callback)
+    pub = rospy.Publisher("/plan_path/goal", PlanMowingPathActionGoal, queue_size=1, latch=True)
+    param_pub = rospy.Publisher("/boustrophedon_server/params", PlanParameters, queue_size=1)
+    while (param_pub.get_num_connections() < 1):
+        rospy.loginfo_throttle_identical(1.0, "Waiting for 1 connection...")
+    rospy.Subscriber("/plan_path/result", PlanMowingPathActionResult, result_callback)
     r = rospy.Rate(10)
 
     if rospy.has_param('/field_polygon'):

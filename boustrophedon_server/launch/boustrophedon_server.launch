@@ -18,6 +18,7 @@
     <arg name="turn_start_offset" default="0.0" />
     <arg name="publish_polygons" default="true"/>
     <arg name="publish_path_points" default="true"/>
+    <arg name="parameters_topic" default="params"/>
 
     <node pkg="boustrophedon_server" type="boustrophedon_planner_server" name="boustrophedon_server" output="screen" respawn="true">
         <param name="repeat_boundary" value="$(arg repeat_boundary)"/>
@@ -37,5 +38,6 @@
         <param name="turn_start_offset" value="$(arg turn_start_offset)" />
         <param name="publish_polygons" value="$(arg publish_polygons)"/>
         <param name="publish_path_points" value="$(arg publish_path_points)"/>
+        <param name="parameters_topic" value="$(arg parameters_topic)"/>
     </node>
 </launch>

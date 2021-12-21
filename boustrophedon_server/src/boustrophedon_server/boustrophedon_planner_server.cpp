@@ -13,6 +13,9 @@ BoustrophedonPlannerServer::BoustrophedonPlannerServer()
 {
   std::size_t error = fetchParams();
 
+  // todo make this dynamic_reconfigurable instead of topic-based so parameter server mirrors the changes
+  params_subscriber_ = private_node_handle_.subscribe(parameters_topic_, 1, &BoustrophedonPlannerServer::updateParamsInternal, this);
+
   action_server_.start();
   action_server_with_param_.start();
 
@@ -28,58 +31,61 @@ BoustrophedonPlannerServer::BoustrophedonPlannerServer()
     path_points_publisher_ = private_node_handle_.advertise<geometry_msgs::PointStamped>("path_points", 1000);
     polygon_points_publisher_ = private_node_handle_.advertise<geometry_msgs::PointStamped>("polygon_points", 1000);
   }
+
 }
 
 std::size_t BoustrophedonPlannerServer::fetchParams()
 {
   std::size_t error = 0;
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "repeat_boundary", repeat_boundary_));
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "repeat_boundary", params_.repeat_boundary_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "outline_clockwise", outline_clockwise_));
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "outline_clockwise", params_.outline_clockwise_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "skip_outlines", skip_outlines_));
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "skip_outlines", params_.skip_outlines_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "outline_layer_count", outline_layer_count_));
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "outline_layer_count", params_.outline_layer_count_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "stripe_separation", stripe_separation_));
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "stripe_separation", params_.stripe_separation_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "intermediary_separation", intermediary_separation_));
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "intermediary_separation", params_.intermediary_separation_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "stripe_angle", stripe_angle_));
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "stripe_angle", params_.stripe_angle_));
   error += static_cast<std::size_t>(!rosparam_shortcuts::get("plan_path", private_node_handle_,
-                                                             "enable_stripe_angle_orientation", enable_orientation_));
+                                                             "enable_stripe_angle_orientation", params_.enable_orientation_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "travel_along_boundary", travel_along_boundary_));
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "travel_along_boundary", params_.travel_along_boundary_));
   error += static_cast<std::size_t>(!rosparam_shortcuts::get(
-      "plan_path", private_node_handle_, "allow_points_outside_boundary", allow_points_outside_boundary_));
+      "plan_path", private_node_handle_, "allow_points_outside_boundary", params_.allow_points_outside_boundary_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "enable_half_y_turns", enable_half_y_turns_));
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "enable_half_y_turns", params_.enable_half_y_turns_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "points_per_turn", points_per_turn_));
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "points_per_turn", params_.points_per_turn_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "turn_start_offset", turn_start_offset_));
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "turn_start_offset", params_.turn_start_offset_));
   error += static_cast<std::size_t>(
       !rosparam_shortcuts::get("plan_path", private_node_handle_, "publish_polygons", publish_polygons_));
   error += static_cast<std::size_t>(
       !rosparam_shortcuts::get("plan_path", private_node_handle_, "publish_path_points", publish_path_points_));
 
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "enable_full_u_turns", enable_full_u_turns_));
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "enable_full_u_turns", params_.enable_full_u_turns_));
   error += static_cast<std::size_t>(
-      !rosparam_shortcuts::get("plan_path", private_node_handle_, "stripes_before_outlines", stripes_before_outlines_));
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "stripes_before_outlines", params_.stripes_before_outlines_));
+  error += static_cast<std::size_t>(
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "parameters_topic", parameters_topic_));
 
   rosparam_shortcuts::shutdownIfError("plan_path", error);
 
-  if (intermediary_separation_ <= 0.0)
+  if (params_.intermediary_separation_ <= 0.0)
   {
     // doesn't make sense, or we don't want intermediaries. set it to double max so we can't make any intermediaries
-    intermediary_separation_ = std::numeric_limits<double>::max();
+    params_.intermediary_separation_ = std::numeric_limits<double>::max();
   }
 
-  if (enable_half_y_turns_ && outline_layer_count_ < 1)
+  if (params_.enable_half_y_turns_ && params_.outline_layer_count_ < 1)
   {
-    if (allow_points_outside_boundary_)
+    if (params_.allow_points_outside_boundary_)
     {
       ROS_WARN_STREAM("Current configuration will result in turns that go outside the boundary, but this has been "
                       "explicitly enabled");
@@ -93,10 +99,22 @@ std::size_t BoustrophedonPlannerServer::fetchParams()
     }
   }
 
-  striping_planner_.setParameters({ stripe_separation_, intermediary_separation_, travel_along_boundary_,
-                                    enable_half_y_turns_, enable_full_u_turns_, points_per_turn_, turn_start_offset_ });
-  outline_planner_.setParameters(
-      { repeat_boundary_, outline_clockwise_, skip_outlines_, outline_layer_count_, stripe_separation_ });
+  striping_planner_.setParameters({
+        params_.stripe_separation_,
+        params_.intermediary_separation_,
+        params_.travel_along_boundary_,
+        params_.enable_half_y_turns_,
+        params_.enable_full_u_turns_,
+        params_.points_per_turn_,
+        params_.turn_start_offset_
+      });
+  outline_planner_.setParameters({
+        params_.repeat_boundary_,
+        params_.outline_clockwise_,
+        params_.skip_outlines_,
+        params_.outline_layer_count_,
+        params_.stripe_separation_
+      });
 
   return error;
 }
@@ -104,39 +122,52 @@ std::size_t BoustrophedonPlannerServer::fetchParams()
 
 void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::PlanParameters &params)
 {
-  stripe_separation_ = params.cut_spacing;
-  stripe_angle_ = params.cut_angle_radians;
-  stripes_before_outlines_ = params.stripes_before_outlines;
-  enable_orientation_ = params.enable_stripe_angle_orientation;
-  intermediary_separation_ = params.intermediary_separation;
-  travel_along_boundary_ = params.travel_along_boundary;
-  points_per_turn_ = params.points_per_turn;
-  turn_start_offset_ = params.turn_start_offset;
-  repeat_boundary_ = params.repeat_boundary;
-  outline_clockwise_ = params.outline_clockwise;
-  skip_outlines_ = params.skip_outlines;
-  outline_layer_count_ = params.outline_layer_count;
+  ROS_INFO_STREAM("Setting new parameters " << params);
+  params_.stripe_separation_ = params.cut_spacing;
+  params_.stripe_angle_ = params.cut_angle_radians;
+  params_.stripes_before_outlines_ = params.stripes_before_outlines;
+  params_.enable_orientation_ = params.enable_stripe_angle_orientation;
+  params_.intermediary_separation_ = params.intermediary_separation;
+  params_.travel_along_boundary_ = params.travel_along_boundary;
+  params_.points_per_turn_ = params.points_per_turn;
+  params_.turn_start_offset_ = params.turn_start_offset;
+  params_.repeat_boundary_ = params.repeat_boundary;
+  params_.outline_clockwise_ = params.outline_clockwise;
+  params_.skip_outlines_ = params.skip_outlines;
+  params_.outline_layer_count_ = params.outline_layer_count;
 
   switch (params.turn_type)
   {
     case boustrophedon_msgs::PlanParameters::TURN_FULL_U:
-      enable_half_y_turns_ = false;
-      enable_full_u_turns_ = true;
+      params_.enable_half_y_turns_ = false;
+      params_.enable_full_u_turns_ = true;
       break;
     case boustrophedon_msgs::PlanParameters::TURN_HALF_Y:
-      enable_half_y_turns_ = true;
-      enable_full_u_turns_ = false;
+      params_.enable_half_y_turns_ = true;
+      params_.enable_full_u_turns_ = false;
       break;
     case boustrophedon_msgs::PlanParameters::TURN_BOUNDARY:
-      enable_half_y_turns_ = false;
-      enable_full_u_turns_ = false;
+      params_.enable_half_y_turns_ = false;
+      params_.enable_full_u_turns_ = false;
       break;
   }
 
-  striping_planner_.setParameters({ stripe_separation_, intermediary_separation_, travel_along_boundary_,
-                                    enable_half_y_turns_, enable_full_u_turns_, points_per_turn_, turn_start_offset_ });
-  outline_planner_.setParameters(
-      { repeat_boundary_, outline_clockwise_, skip_outlines_, outline_layer_count_, stripe_separation_ });
+  striping_planner_.setParameters({
+        params_.stripe_separation_,
+        params_.intermediary_separation_,
+        params_.travel_along_boundary_,
+        params_.enable_half_y_turns_,
+        params_.enable_full_u_turns_,
+        params_.points_per_turn_,
+        params_.turn_start_offset_
+      });
+  outline_planner_.setParameters({
+        params_.repeat_boundary_,
+        params_.outline_clockwise_,
+        params_.skip_outlines_,
+        params_.outline_layer_count_,
+        params_.stripe_separation_
+      });
 }
 
 void BoustrophedonPlannerServer::configAndExecutePlanPathAction(const boustrophedon_msgs::PlanMowingPathParamGoalConstPtr& goalWithParams)
@@ -149,7 +180,7 @@ void BoustrophedonPlannerServer::configAndExecutePlanPathAction(const boustrophe
 
   std::string boundary_frame = goalWithParams->property.header.frame_id;
 
-  auto path = executePlanPathInternal(goal);
+  auto path = executePlanPathInternal(goal, params_);
   auto result = toResult(std::move(path), boundary_frame);
 
   if (last_status_.empty())
@@ -169,7 +200,7 @@ void BoustrophedonPlannerServer::configAndExecutePlanPathAction(const boustrophe
 void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs::PlanMowingPathGoalConstPtr& goal)
 {
   std::string boundary_frame = goal->property.header.frame_id;
-  auto path = executePlanPathInternal(*goal);
+  auto path = executePlanPathInternal(*goal, params_);
   auto result = toResult(std::move(path), boundary_frame);
   if (last_status_.empty())
   {
@@ -181,15 +212,17 @@ void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs:
   }
 }
 
-std::vector<NavPoint> BoustrophedonPlannerServer::executePlanPathInternal(const boustrophedon_msgs::PlanMowingPathGoal& goal)
+std::vector<NavPoint> BoustrophedonPlannerServer::executePlanPathInternal(
+                                                    const boustrophedon_msgs::PlanMowingPathGoal& goal,
+                                                    Parameters params)
 {
-  // std::string boundary_frame = goal->property.header.frame_id;
+  // std::string boundaexecutePlanPathInternalry_frame = goal->property.header.frame_id;
   last_status_.clear();
 
-  ROS_INFO_STREAM("using Angle: " << stripe_angle_ * 180 / 3.14159265359 << " and Spacing: " << stripe_separation_);
-  if (enable_orientation_)
+  ROS_INFO_STREAM("using Angle: " << params.stripe_angle_ * 180 / 3.14159265359 << " and Spacing: " << params.stripe_separation_);
+  if (params.enable_orientation_)
   {
-    stripe_angle_ = getStripeAngleFromOrientation(goal.robot_position);
+    params.stripe_angle_ = getStripeAngleFromOrientation(goal.robot_position);
   }
 
   Polygon polygon = fromBoundary(goal.property);
@@ -219,7 +252,7 @@ std::vector<NavPoint> BoustrophedonPlannerServer::executePlanPathInternal(const 
   std::vector<NavPoint> path;
   std::vector<NavPoint> outline_path;
 
-  auto preprocess_transform = preprocessPolygon(polygon, robot_position, stripe_angle_);
+  auto preprocess_transform = preprocessPolygon(polygon, robot_position, params.stripe_angle_);
 
   if (publish_polygons_)
   {
@@ -238,7 +271,7 @@ std::vector<NavPoint> BoustrophedonPlannerServer::executePlanPathInternal(const 
 
   if (!outline_path.empty())
   {
-    if (stripes_before_outlines_)
+    if (params.stripes_before_outlines_)
     {
       path.push_back(outline_path[0]);
     }
@@ -264,12 +297,12 @@ std::vector<NavPoint> BoustrophedonPlannerServer::executePlanPathInternal(const 
     // add the stripes to the path, using merged_polygon boundary to travel if necessary.
     striping_planner_.addToPath(merged_polygon, subpoly, robot_position, path);
   }
-  if (travel_along_boundary_)
+  if (params.travel_along_boundary_)
   {
     striping_planner_.addReturnToStart(merged_polygon, start_position, robot_position, path);
   }
 
-  if (stripes_before_outlines_ && !outline_path.empty())
+  if (params.stripes_before_outlines_ && !outline_path.empty())
   {
     path.insert(path.end(), outline_path.begin(), outline_path.end());
   }
