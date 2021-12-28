@@ -18,7 +18,7 @@
     <arg name="turn_start_offset" default="0.0" />
     <arg name="publish_polygons" default="true"/>
     <arg name="publish_path_points" default="true"/>
-    <arg name="parameters_topic" default="params"/>
+    <arg name="parameters_topic" default="/user_bplanner_config_update"/>
 
     <node pkg="boustrophedon_server" type="boustrophedon_planner_server" name="boustrophedon_server" output="screen" respawn="true">
         <param name="repeat_boundary" value="$(arg repeat_boundary)"/>

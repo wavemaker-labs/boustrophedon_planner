@@ -15,6 +15,10 @@ BoustrophedonPlannerServer::BoustrophedonPlannerServer()
 
   // todo make this dynamic_reconfigurable instead of topic-based so parameter server mirrors the changes
   params_subscriber_ = private_node_handle_.subscribe(parameters_topic_, 1, &BoustrophedonPlannerServer::updateParamsInternal, this);
+  default_params_publisher_ = private_node_handle_.advertise<boustrophedon_msgs::PlanParameters>("default_config", 1, true);
+
+  // todo: test this out for consistency. If not, then switch to subscriber connection callback
+  publishCurrentParameters();
 
   action_server_.start();
   action_server_with_param_.start();
@@ -439,4 +443,37 @@ void BoustrophedonPlannerServer::publishPolygonPoints(const Polygon& poly) const
     polygon_points_publisher_.publish(point);
     ros::spinOnce();
   }
+}
+
+void BoustrophedonPlannerServer::publishCurrentParameters() const
+{
+  boustrophedon_msgs::PlanParameters params;
+
+  params.cut_spacing = params_.stripe_separation_;
+  params.cut_angle_radians = params_.stripe_angle_;
+  params.stripes_before_outlines = params_.stripes_before_outlines_;
+  params.enable_stripe_angle_orientation = params_.enable_orientation_;
+  params.intermediary_separation = params_.intermediary_separation_;
+  params.travel_along_boundary = params_.travel_along_boundary_;
+  params.points_per_turn = params_.points_per_turn_;
+  params.turn_start_offset = params_.turn_start_offset_;
+  params.repeat_boundary = params_.repeat_boundary_;
+  params.outline_clockwise = params_.outline_clockwise_;
+  params.skip_outlines = params_.skip_outlines_;
+  params.outline_layer_count = params_.outline_layer_count_;
+
+  if (params_.enable_full_u_turns_)
+  {
+    params.turn_type = boustrophedon_msgs::PlanParameters::TURN_FULL_U;
+  }
+  else if (params_.enable_half_y_turns_)
+  {
+    params.turn_type = boustrophedon_msgs::PlanParameters::TURN_HALF_Y;
+  }
+  else
+  {
+    params.turn_type = boustrophedon_msgs::PlanParameters::TURN_BOUNDARY;
+  }
+
+  default_params_publisher_.publish(params);
 }

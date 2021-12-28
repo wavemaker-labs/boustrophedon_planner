@@ -38,6 +38,7 @@ private:
   ros::Publisher preprocessed_polygon_publisher_;
   ros::Publisher path_points_publisher_;
   ros::Publisher polygon_points_publisher_;
+  ros::Publisher default_params_publisher_;
   ros::Subscriber params_subscriber_;
 
   StripingPlanner striping_planner_;
@@ -78,6 +79,7 @@ private:
   geometry_msgs::PolygonStamped convertCGALPolygonToMsg(const Polygon& poly) const;
   void publishPathPoints(const std::vector<NavPoint>& path) const;
   void publishPolygonPoints(const Polygon& poly) const;
+  void publishCurrentParameters() const;
   std::size_t fetchParams();
   std::size_t fetchParamsLive(const boustrophedon_msgs::PlanParameters &params);
   void updateParamsInternal(const boustrophedon_msgs::PlanParameters &params);
