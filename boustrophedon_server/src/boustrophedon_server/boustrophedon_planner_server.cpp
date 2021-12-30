@@ -128,7 +128,10 @@ void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::
 {
   ROS_INFO_STREAM("Setting new parameters " << params);
   params_.stripe_separation_ = params.cut_spacing;
-  params_.stripe_angle_ = params.cut_angle_radians;
+
+  // The angle received from UI is in degrees so name is inconsistent. This must be converted to radians before saving
+  // todo: change name in the next change
+  params_.stripe_angle_ = params.cut_angle_radians * 3.1415927 / 180.0;
   params_.stripes_before_outlines_ = params.stripes_before_outlines;
   params_.enable_orientation_ = params.enable_stripe_angle_orientation;
   params_.intermediary_separation_ = params.intermediary_separation;
@@ -453,7 +456,11 @@ void BoustrophedonPlannerServer::publishCurrentParameters() const
   params.cut_angle_radians = params_.stripe_angle_;
   params.stripes_before_outlines = params_.stripes_before_outlines_;
   params.enable_stripe_angle_orientation = params_.enable_orientation_;
-  params.intermediary_separation = params_.intermediary_separation_;
+
+  if (params_.intermediary_separation_ != std::numeric_limits<double>::max())
+    params.intermediary_separation = params_.intermediary_separation_;
+  else
+    params.intermediary_separation = 0.0;
   params.travel_along_boundary = params_.travel_along_boundary_;
   params.points_per_turn = params_.points_per_turn_;
   params.turn_start_offset = params_.turn_start_offset_;
