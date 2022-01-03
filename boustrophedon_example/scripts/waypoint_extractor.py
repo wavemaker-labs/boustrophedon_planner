@@ -265,9 +265,9 @@ def fetch_params():
         loaded_params.cut_spacing = rospy.get_param('/boustrophedon_server/stripe_separation')
     if rospy.has_param('/boustrophedon_server/intermediary_separation'):
         loaded_params.intermediary_separation = rospy.get_param('/boustrophedon_server/intermediary_separation')
-    # note name diff: cut_angle_radians <-> stripe_angle
+    # note name diff: cut_angle_degrees <-> stripe_angle
     if rospy.has_param('/boustrophedon_server/stripe_angle'):
-        loaded_params.cut_angle_radians = rospy.get_param('/boustrophedon_server/stripe_angle')
+        loaded_params.cut_angle_degrees = rospy.get_param('/boustrophedon_server/stripe_angle')
     if rospy.has_param('/boustrophedon_server/enable_stripe_angle_orientation'):
         loaded_params.enable_stripe_angle_orientation = rospy.get_param('/boustrophedon_server/enable_stripe_angle_orientation')
     if rospy.has_param('/boustrophedon_server/travel_along_boundary'):
@@ -320,7 +320,7 @@ def populate_plan_path_input(polygon):
     params = fetch_params()
     # pub_node.goal.parameters = params
     param_pub.publish(params)
-    rospy.loginfo("Published angle: " + str(params.cut_angle_radians * 180 / pi ))
+    rospy.loginfo("Published angle: " + str(params.cut_angle_degrees * 180 / pi ))
 
     return pub_node
 

@@ -131,7 +131,7 @@ void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::
 
   // The angle received from UI is in degrees so name is inconsistent. This must be converted to radians before saving
   // todo: change name in the next change
-  params_.stripe_angle_ = params.cut_angle_radians * 3.1415927 / 180.0;
+  params_.stripe_angle_ = params.cut_angle_degrees * 3.1415927 / 180.0;
   params_.stripes_before_outlines_ = params.stripes_before_outlines;
   params_.enable_orientation_ = params.enable_stripe_angle_orientation;
   params_.intermediary_separation_ = params.intermediary_separation;
@@ -453,7 +453,7 @@ void BoustrophedonPlannerServer::publishCurrentParameters() const
   boustrophedon_msgs::PlanParameters params;
 
   params.cut_spacing = params_.stripe_separation_;
-  params.cut_angle_radians = params_.stripe_angle_;
+  params.cut_angle_degrees = params_.stripe_angle_;
   params.stripes_before_outlines = params_.stripes_before_outlines_;
   params.enable_stripe_angle_orientation = params_.enable_orientation_;
 
