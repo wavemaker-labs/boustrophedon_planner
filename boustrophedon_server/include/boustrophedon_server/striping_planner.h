@@ -34,6 +34,9 @@ public:
     // Determines the offset that a turn starts at -- setting how much room there is for a turn.
     // Larger moves the turn closer to the boundary.
     double turn_start_offset = 0.5;  // meters
+
+    // Minimum turning radius (in meters) of the arc to be created to smooth out turning.
+    double u_turn_radius = 1.0;  // meters
   };
 
   void setParameters(Parameters parameters);

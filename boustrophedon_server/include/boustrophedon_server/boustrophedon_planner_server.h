@@ -62,6 +62,7 @@ private:
     bool enable_full_u_turns_{};
     int points_per_turn_{};
     double turn_start_offset_{};
+    double u_turn_radius_{};
   } params_;
 
   tf::TransformListener transform_listener_{};

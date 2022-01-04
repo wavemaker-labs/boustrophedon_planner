@@ -68,6 +68,8 @@ std::size_t BoustrophedonPlannerServer::fetchParams()
   error += static_cast<std::size_t>(
       !rosparam_shortcuts::get("plan_path", private_node_handle_, "turn_start_offset", params_.turn_start_offset_));
   error += static_cast<std::size_t>(
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "u_turn_radius", params_.u_turn_radius_));
+  error += static_cast<std::size_t>(
       !rosparam_shortcuts::get("plan_path", private_node_handle_, "publish_polygons", publish_polygons_));
   error += static_cast<std::size_t>(
       !rosparam_shortcuts::get("plan_path", private_node_handle_, "publish_path_points", publish_path_points_));
@@ -110,7 +112,8 @@ std::size_t BoustrophedonPlannerServer::fetchParams()
         params_.enable_half_y_turns_,
         params_.enable_full_u_turns_,
         params_.points_per_turn_,
-        params_.turn_start_offset_
+        params_.turn_start_offset_,
+        params_.u_turn_radius_
       });
   outline_planner_.setParameters({
         params_.repeat_boundary_,
@@ -142,6 +145,7 @@ void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::
   params_.outline_clockwise_ = params.outline_clockwise;
   params_.skip_outlines_ = params.skip_outlines;
   params_.outline_layer_count_ = params.outline_layer_count;
+  params_.u_turn_radius_ = params.u_turn_radius;
 
   switch (params.turn_type)
   {

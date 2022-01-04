@@ -14,8 +14,9 @@
     <!-- Note: if enabling half-y turns, must have an outline_layer_count >= 1 -->
     <arg name="enable_half_y_turns" default="false" />
     <arg name="enable_full_u_turns" default="true" />
-    <arg name="points_per_turn" default="10" />
+    <arg name="points_per_turn" default="20" />
     <arg name="turn_start_offset" default="0.0" />
+    <arg name="u_turn_radius" default="1.0" />
     <arg name="publish_polygons" default="true"/>
     <arg name="publish_path_points" default="true"/>
     <arg name="parameters_topic" default="/user_bplanner_config_update"/>
@@ -36,6 +37,7 @@
         <param name="enable_full_u_turns" value="$(arg enable_full_u_turns)" />
         <param name="points_per_turn" value="$(arg points_per_turn)" />
         <param name="turn_start_offset" value="$(arg turn_start_offset)" />
+        <param name="u_turn_radius" value="$(arg u_turn_radius)" />
         <param name="publish_polygons" value="$(arg publish_polygons)"/>
         <param name="publish_path_points" value="$(arg publish_path_points)"/>
         <param name="parameters_topic" value="$(arg parameters_topic)"/>

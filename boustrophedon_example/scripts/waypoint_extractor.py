@@ -267,7 +267,7 @@ def fetch_params():
         loaded_params.intermediary_separation = rospy.get_param('/boustrophedon_server/intermediary_separation')
     # note name diff: cut_angle_degrees <-> stripe_angle
     if rospy.has_param('/boustrophedon_server/stripe_angle'):
-        loaded_params.cut_angle_degrees = rospy.get_param('/boustrophedon_server/stripe_angle')
+        loaded_params.cut_angle_degrees = rospy.get_param('/boustrophedon_server/stripe_angle') * 180.0 / pi
     if rospy.has_param('/boustrophedon_server/enable_stripe_angle_orientation'):
         loaded_params.enable_stripe_angle_orientation = rospy.get_param('/boustrophedon_server/enable_stripe_angle_orientation')
     if rospy.has_param('/boustrophedon_server/travel_along_boundary'):
@@ -280,6 +280,8 @@ def fetch_params():
         loaded_params.points_per_turn = rospy.get_param('/boustrophedon_server/points_per_turn')
     if rospy.has_param('/boustrophedon_server/turn_start_offset'):
         loaded_params.turn_start_offset = rospy.get_param('/boustrophedon_server/turn_start_offset')
+    if rospy.has_param('/boustrophedon_server/u_turn_radius'):
+        loaded_params.u_turn_radius = rospy.get_param('/boustrophedon_server/u_turn_radius')
 
     # selecting the right turn type based on params:
     if rospy.has_param('/boustrophedon_server/enable_full_u_turns'):
@@ -320,7 +322,7 @@ def populate_plan_path_input(polygon):
     params = fetch_params()
     # pub_node.goal.parameters = params
     param_pub.publish(params)
-    rospy.loginfo("Published angle: " + str(params.cut_angle_degrees * 180 / pi ))
+    rospy.loginfo("Published angle: " + str(params.cut_angle_degrees))
 
     return pub_node
 
@@ -587,7 +589,7 @@ if __name__ == '__main__':
     tf_buffer = tf2_ros.Buffer()
     tf_listener = tf2_ros.TransformListener(tf_buffer)
     pub = rospy.Publisher("/plan_path/goal", PlanMowingPathActionGoal, queue_size=1, latch=True)
-    param_pub = rospy.Publisher("/boustrophedon_server/params", PlanParameters, queue_size=1)
+    param_pub = rospy.Publisher("/user_bplanner_config_update", PlanParameters, queue_size=1)
     while (param_pub.get_num_connections() < 1):
         rospy.loginfo_throttle_identical(1.0, "Waiting for 1 connection...")
     rospy.Subscriber("/plan_path/result", PlanMowingPathActionResult, result_callback)
