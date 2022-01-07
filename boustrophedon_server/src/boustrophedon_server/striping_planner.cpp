@@ -227,7 +227,7 @@ bool StripingPlanner::isTurnAreaSufficient(const std::vector<NavPoint>& path, co
 
   double turn_offset{0.0};
   if (params_.enable_bulb_turn)
-    turn_offset = std::max(params_.u_turn_radius, params_.stripe_separation);
+    turn_offset = std::max(params_.u_turn_radius, 2 * params_.stripe_separation);
   else
     turn_offset = params_.stripe_separation;
 
