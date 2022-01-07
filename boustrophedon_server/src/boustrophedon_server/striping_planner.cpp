@@ -120,7 +120,7 @@ void StripingPlanner::fillPolygon(const Polygon& polygon, std::vector<NavPoint>&
           path.emplace_back(PointType::StripeStart, intersections.front());
         }
       }
-      else if (params_.enable_full_u_turn)
+      else if (params_.enable_full_u_turn || params_.enable_bulb_turn)
       {
         // the full-u-turn places its own stripe start points, so we don't want to place this one naively, unless there
         // isn't anything in the path
@@ -131,12 +131,12 @@ void StripingPlanner::fillPolygon(const Polygon& polygon, std::vector<NavPoint>&
         }
         else
         {
-          auto edge_delta = 5.0 * (params_.stripe_separation - params_.u_turn_radius);
+          auto edge_delta = 2.0 * (params_.stripe_separation + params_.u_turn_radius);
 
           // do not make an arc turn if the difference between the two edge points make the plan go over the safety edge
           // instead revert to following the boundary edge to get to the next point
-          if (definitelyGreaterThan(abs(path.back().point.y() - intersections.front().y()),
-                edge_delta, EPSILON) )
+          if ( !isTurnAreaSufficient(path, intersections)
+            || definitelyGreaterThan(abs(path.back().point.y() - intersections.front().y()), edge_delta, EPSILON) )
           {
             addBoundaryFollowingPoints(path, intersections.front(), polygon);
 
@@ -215,6 +215,32 @@ void StripingPlanner::addBoundaryFollowingPoints(std::vector<NavPoint>& path, co
 
     std::cout << "inserted an extra boundary following path of size: " << boundary_path.size() - 2 << std::endl;
   }
+}
+
+bool StripingPlanner::isTurnAreaSufficient(const std::vector<NavPoint>& path, const std::vector<Point> &next_stripe)
+{
+
+  if (path.size() < 2 || next_stripe.size() < 2)
+  {
+    return false;
+  }
+
+  double turn_offset{0.0};
+  if (params_.enable_bulb_turn)
+    turn_offset = std::max(params_.u_turn_radius, params_.stripe_separation);
+  else
+    turn_offset = params_.stripe_separation;
+
+  bool allowed = false;
+  if (definitelyGreaterThan(abs(path.back().point.y() - path[path.size() - 2].point.y()),
+        turn_offset, EPSILON)
+      && definitelyGreaterThan(abs(next_stripe.front().y() - next_stripe[1].y()),
+        turn_offset, EPSILON))
+  {
+    allowed = true;
+  }
+
+  return allowed;
 }
 
 void StripingPlanner::addHalfYTurnPoints(std::vector<NavPoint>& path, const Point& next_stripe_start,
@@ -424,9 +450,11 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
   double rad_offset;
 
   // Check if the minimum turning radius is set to be larger than the separation, which means adjustments
-  if (params_.u_turn_radius > (params_.stripe_separation / 2.0))
+  if (params_.enable_bulb_turn && params_.u_turn_radius > (params_.stripe_separation / 2.0))
   {
+    // distance from the edge
     arc_center_offset = params_.u_turn_radius - (params_.stripe_separation / 2.0);
+    // wideness of the turn arc that opens just enough to coincide with the stripe width
     rad_offset = acos(params_.stripe_separation / (2.0 * params_.u_turn_radius));
   }
   else

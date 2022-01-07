@@ -28,6 +28,9 @@ public:
     // Determines whether a full-u-turn arc will be added to the path between each stripe, to smooth out turning.
     bool enable_full_u_turn = false;
 
+    // Determines whether a bulb-turn arc will be added to the path between each stripe, to smooth out turning.
+    bool enable_bulb_turn = false;
+
     // Determines the amount of points in each arc of a half-y-turn.
     int points_per_turn = 20;
 
@@ -66,7 +69,7 @@ private:
   void addFullUTurnPoints(std::vector<NavPoint>& path, const Point& next_stripe_start, StripingDirection& stripe_dir);
   std::vector<NavPoint> generateDiscretizedArc(const Point& center_point, const float& radius, const float& start_rad,
                                                const float& end_rad, const int& num_points);
-
+  bool isTurnAreaSufficient(const std::vector<NavPoint>& path, const std::vector<Point> &next_stripe);
   bool isLeftClosest(const Polygon& polygon, const Point& robot_position, double& min_x, double& max_x);
   std::vector<NavPoint> getOutlinePathToPoint(const Polygon& polygon, const Point& start_point, const Point& end_point);
   static std::vector<NavPoint> getPolygonPath(const Polygon& polygon, const Point& start_point, const Point& end_point);

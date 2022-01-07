@@ -12,7 +12,6 @@ bool stripes_before_outlines # default = false
 uint8 turn_type # default = TURN_FULL_U
 uint8 points_per_turn # default = 10
 float64 turn_start_offset # default = 0.0
-float64 u_turn_radius # default = 1.5
 
 uint8 TURN_BOUNDARY = 0
 uint8 TURN_FULL_U = 1

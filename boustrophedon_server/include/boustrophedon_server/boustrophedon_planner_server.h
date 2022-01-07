@@ -60,6 +60,7 @@ private:
     bool stripes_before_outlines_{};
     bool enable_half_y_turns_{};
     bool enable_full_u_turns_{};
+    bool enable_bulb_turns_{};
     int points_per_turn_{};
     double turn_start_offset_{};
     double u_turn_radius_{};

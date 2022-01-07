@@ -10,12 +10,15 @@
     <arg name="travel_along_boundary" default="true" />
     <arg name="allow_points_outside_boundary" default="false" />
     <arg name="stripes_before_outlines" default="false" />
-    <!-- Only choose one between half or full turns -->
+    <!-- Only choose one between 1) half 2) full or 3) bulb turns -->
+    <!-- In UI settings just input 1, 2, or 3 under turn_type. 0 to follow boundary normally-->
     <!-- Note: if enabling half-y turns, must have an outline_layer_count >= 1 -->
     <arg name="enable_half_y_turns" default="false" />
-    <arg name="enable_full_u_turns" default="true" />
+    <arg name="enable_full_u_turns" default="false" />
+    <arg name="enable_bulb_turns" default="true" />
     <arg name="points_per_turn" default="20" />
     <arg name="turn_start_offset" default="0.0" />
+    <!-- u turn radius works only if enable_bulb_turns is enabled -->
     <arg name="u_turn_radius" default="1.0" />
     <arg name="publish_polygons" default="true"/>
     <arg name="publish_path_points" default="true"/>
@@ -35,6 +38,7 @@
         <param name="stripes_before_outlines" value="$(arg stripes_before_outlines)" />
         <param name="enable_half_y_turns" value="$(arg enable_half_y_turns)" />
         <param name="enable_full_u_turns" value="$(arg enable_full_u_turns)" />
+        <param name="enable_bulb_turns" value="$(arg enable_bulb_turns)" />
         <param name="points_per_turn" value="$(arg points_per_turn)" />
         <param name="turn_start_offset" value="$(arg turn_start_offset)" />
         <param name="u_turn_radius" value="$(arg u_turn_radius)" />

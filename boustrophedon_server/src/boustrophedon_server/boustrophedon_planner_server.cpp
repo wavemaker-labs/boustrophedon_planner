@@ -77,6 +77,8 @@ std::size_t BoustrophedonPlannerServer::fetchParams()
   error += static_cast<std::size_t>(
       !rosparam_shortcuts::get("plan_path", private_node_handle_, "enable_full_u_turns", params_.enable_full_u_turns_));
   error += static_cast<std::size_t>(
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "enable_bulb_turns", params_.enable_bulb_turns_));
+  error += static_cast<std::size_t>(
       !rosparam_shortcuts::get("plan_path", private_node_handle_, "stripes_before_outlines", params_.stripes_before_outlines_));
   error += static_cast<std::size_t>(
       !rosparam_shortcuts::get("plan_path", private_node_handle_, "parameters_topic", parameters_topic_));
@@ -111,6 +113,7 @@ std::size_t BoustrophedonPlannerServer::fetchParams()
         params_.travel_along_boundary_,
         params_.enable_half_y_turns_,
         params_.enable_full_u_turns_,
+        params_.enable_bulb_turns_,
         params_.points_per_turn_,
         params_.turn_start_offset_,
         params_.u_turn_radius_
@@ -132,8 +135,7 @@ void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::
   ROS_INFO_STREAM("Setting new parameters " << params);
   params_.stripe_separation_ = params.cut_spacing;
 
-  // The angle received from UI is in degrees so name is inconsistent. This must be converted to radians before saving
-  // todo: change name in the next change
+  // The angle received from UI is in degrees. This must be converted to radians before saving
   params_.stripe_angle_ = params.cut_angle_degrees * 3.1415927 / 180.0;
   params_.stripes_before_outlines_ = params.stripes_before_outlines;
   params_.enable_orientation_ = params.enable_stripe_angle_orientation;
@@ -145,21 +147,31 @@ void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::
   params_.outline_clockwise_ = params.outline_clockwise;
   params_.skip_outlines_ = params.skip_outlines;
   params_.outline_layer_count_ = params.outline_layer_count;
-  params_.u_turn_radius_ = params.u_turn_radius;
+  // todo enable this once PlanParameters message is updated
+  // params_.u_turn_radius_ = params.u_turn_radius;
 
   switch (params.turn_type)
   {
+    // case boustrophedon_msgs::PlanParameters::TURN_BULB:
+    case 3:
+      params_.enable_half_y_turns_ = false;
+      params_.enable_full_u_turns_ = false;
+      params_.enable_bulb_turns_ = true;
+      break;
     case boustrophedon_msgs::PlanParameters::TURN_FULL_U:
       params_.enable_half_y_turns_ = false;
       params_.enable_full_u_turns_ = true;
+      params_.enable_bulb_turns_ = false;
       break;
     case boustrophedon_msgs::PlanParameters::TURN_HALF_Y:
       params_.enable_half_y_turns_ = true;
       params_.enable_full_u_turns_ = false;
+      params_.enable_bulb_turns_ = false;
       break;
     case boustrophedon_msgs::PlanParameters::TURN_BOUNDARY:
       params_.enable_half_y_turns_ = false;
       params_.enable_full_u_turns_ = false;
+      params_.enable_bulb_turns_ = false;
       break;
   }
 
@@ -169,6 +181,7 @@ void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::
         params_.travel_along_boundary_,
         params_.enable_half_y_turns_,
         params_.enable_full_u_turns_,
+        params_.enable_bulb_turns_,
         params_.points_per_turn_,
         params_.turn_start_offset_
       });
@@ -473,6 +486,10 @@ void BoustrophedonPlannerServer::publishCurrentParameters() const
   params.skip_outlines = params_.skip_outlines_;
   params.outline_layer_count = params_.outline_layer_count_;
 
+  if (params_.enable_bulb_turns_)
+  {
+    params.turn_type = static_cast<uint8_t>(3);  // todo replace with named constant
+  }
   if (params_.enable_full_u_turns_)
   {
     params.turn_type = boustrophedon_msgs::PlanParameters::TURN_FULL_U;
