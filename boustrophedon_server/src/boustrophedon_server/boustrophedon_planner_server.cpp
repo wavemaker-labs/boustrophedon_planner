@@ -85,50 +85,8 @@ std::size_t BoustrophedonPlannerServer::fetchParams()
 
   rosparam_shortcuts::shutdownIfError("plan_path", error);
 
-  if (params_.intermediary_separation_ <= 0.0)
-  {
-    // doesn't make sense, or we don't want intermediaries. set it to double max so we can't make any intermediaries
-    params_.intermediary_separation_ = std::numeric_limits<double>::max();
-  }
-
-  if (params_.enable_half_y_turns_ && params_.outline_layer_count_ < 1)
-  {
-    if (params_.allow_points_outside_boundary_)
-    {
-      ROS_WARN_STREAM("Current configuration will result in turns that go outside the boundary, but this has been "
-                      "explicitly enabled");
-    }
-    else
-    {
-      // we can't do half-y-turns safely without an inner boundary layer, as the arc will stick outside of the boundary
-      ROS_ERROR_STREAM("Cannot plan using half-y-turns if the outline_layer_count is less than 1! Boustrophedon "
-                       "planner will not start.");
-      return error;
-    }
-  }
-
-  striping_planner_.setParameters({
-        params_.stripe_separation_,
-        params_.intermediary_separation_,
-        params_.travel_along_boundary_,
-        params_.enable_half_y_turns_,
-        params_.enable_full_u_turns_,
-        params_.enable_bulb_turns_,
-        params_.points_per_turn_,
-        params_.turn_start_offset_,
-        params_.u_turn_radius_
-      });
-  outline_planner_.setParameters({
-        params_.repeat_boundary_,
-        params_.outline_clockwise_,
-        params_.skip_outlines_,
-        params_.outline_layer_count_,
-        params_.stripe_separation_
-      });
-
-  return error;
+  return error + loadParams();
 }
-
 
 void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::PlanParameters &params)
 {
@@ -172,6 +130,34 @@ void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::
       params_.enable_bulb_turns_ = false;
       break;
   }
+  loadParams();
+}
+
+std::size_t BoustrophedonPlannerServer::loadParams()
+{
+  std::size_t error = 0;
+  if (params_.intermediary_separation_ <= 0.0)
+  {
+    // doesn't make sense, or we don't want intermediaries. set it to double max so we can't make any intermediaries
+    params_.intermediary_separation_ = std::numeric_limits<double>::max();
+  }
+
+  if (params_.enable_half_y_turns_ && params_.outline_layer_count_ < 1)
+  {
+    if (params_.allow_points_outside_boundary_)
+    {
+      ROS_WARN_STREAM("Current configuration will result in turns that go outside the boundary, but this has been "
+                      "explicitly enabled");
+    }
+    else
+    {
+      // we can't do half-y-turns safely without an inner boundary layer, as the arc will stick outside of the boundary
+      ROS_ERROR_STREAM("Cannot plan using half-y-turns if the outline_layer_count is less than 1! Boustrophedon "
+                       "planner will not update.");
+      params_.enable_half_y_turns_ = false;
+      return error;
+    }
+  }
 
   striping_planner_.setParameters({
         params_.stripe_separation_,
@@ -181,7 +167,8 @@ void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::
         params_.enable_full_u_turns_,
         params_.enable_bulb_turns_,
         params_.points_per_turn_,
-        params_.turn_start_offset_
+        params_.turn_start_offset_,
+        params_.u_turn_radius_
       });
   outline_planner_.setParameters({
         params_.repeat_boundary_,
@@ -190,6 +177,8 @@ void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::
         params_.outline_layer_count_,
         params_.stripe_separation_
       });
+
+  return error;
 }
 
 void BoustrophedonPlannerServer::configAndExecutePlanPathAction(const boustrophedon_msgs::PlanMowingPathParamGoalConstPtr& goalWithParams)
@@ -483,12 +472,13 @@ void BoustrophedonPlannerServer::publishCurrentParameters() const
   params.outline_clockwise = params_.outline_clockwise_;
   params.skip_outlines = params_.skip_outlines_;
   params.outline_layer_count = params_.outline_layer_count_;
+  params.u_turn_radius = params_.u_turn_radius_;
 
   if (params_.enable_bulb_turns_)
   {
     params.turn_type = boustrophedon_msgs::PlanParameters::TURN_BULB;  // todo replace with named constant
   }
-  if (params_.enable_full_u_turns_)
+  else if (params_.enable_full_u_turns_)
   {
     params.turn_type = boustrophedon_msgs::PlanParameters::TURN_FULL_U;
   }

@@ -83,7 +83,7 @@ private:
   void publishPolygonPoints(const Polygon& poly) const;
   void publishCurrentParameters() const;
   std::size_t fetchParams();
-  std::size_t fetchParamsLive(const boustrophedon_msgs::PlanParameters &params);
+  std::size_t loadParams();
   void updateParamsInternal(const boustrophedon_msgs::PlanParameters &params);
   std::vector<NavPoint> executePlanPathInternal(const boustrophedon_msgs::PlanMowingPathGoal& goal, Parameters params);
 };
