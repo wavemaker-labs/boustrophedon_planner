@@ -147,13 +147,11 @@ void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::
   params_.outline_clockwise_ = params.outline_clockwise;
   params_.skip_outlines_ = params.skip_outlines;
   params_.outline_layer_count_ = params.outline_layer_count;
-  // todo enable this once PlanParameters message is updated
-  // params_.u_turn_radius_ = params.u_turn_radius;
+  params_.u_turn_radius_ = params.u_turn_radius;
 
   switch (params.turn_type)
   {
-    // case boustrophedon_msgs::PlanParameters::TURN_BULB:
-    case 3:
+    case boustrophedon_msgs::PlanParameters::TURN_BULB:
       params_.enable_half_y_turns_ = false;
       params_.enable_full_u_turns_ = false;
       params_.enable_bulb_turns_ = true;
@@ -488,7 +486,7 @@ void BoustrophedonPlannerServer::publishCurrentParameters() const
 
   if (params_.enable_bulb_turns_)
   {
-    params.turn_type = static_cast<uint8_t>(3);  // todo replace with named constant
+    params.turn_type = boustrophedon_msgs::PlanParameters::TURN_BULB;  // todo replace with named constant
   }
   if (params_.enable_full_u_turns_)
   {

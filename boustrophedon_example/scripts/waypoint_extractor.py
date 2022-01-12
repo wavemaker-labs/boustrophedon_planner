@@ -280,8 +280,8 @@ def fetch_params():
         loaded_params.points_per_turn = rospy.get_param('/boustrophedon_server/points_per_turn')
     if rospy.has_param('/boustrophedon_server/turn_start_offset'):
         loaded_params.turn_start_offset = rospy.get_param('/boustrophedon_server/turn_start_offset')
-    # if rospy.has_param('/boustrophedon_server/u_turn_radius'):
-    #     loaded_params.u_turn_radius = rospy.get_param('/boustrophedon_server/u_turn_radius')
+    if rospy.has_param('/boustrophedon_server/u_turn_radius'):
+        loaded_params.u_turn_radius = rospy.get_param('/boustrophedon_server/u_turn_radius')
 
     # selecting the right turn type based on params:
     if rospy.has_param('/boustrophedon_server/enable_bulb_turns'):
