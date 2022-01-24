@@ -26,9 +26,15 @@ catkin_package(
   rosparam_shortcuts
 )
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+)
+
+file(GLOB_RECURSE SPLINE_SOURCES
+  include/spline/*.cpp
 )
 
 add_executable(boustrophedon_planner_server
@@ -40,7 +46,9 @@ add_executable(boustrophedon_planner_server
   src/boustrophedon_server/boustrophedon_types.cpp
   src/boustrophedon_server/cellular_decomposition/polygon_decomposer.cpp
   src/boustrophedon_server/cellular_decomposition/cell.cpp
-  )
+  ${SPLINE_SOURCES}
+)
+
 target_link_libraries(boustrophedon_planner_server
   ${catkin_LIBRARIES}
   CGAL::CGAL

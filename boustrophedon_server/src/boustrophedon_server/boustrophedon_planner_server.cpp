@@ -492,7 +492,7 @@ void BoustrophedonPlannerServer::publishCurrentParameters() const
   boustrophedon_msgs::PlanParameters params;
 
   params.cut_spacing = params_.stripe_separation_;
-  params.cut_angle_degrees = params_.stripe_angle_;
+  params.cut_angle_degrees = params_.stripe_angle_ * 180 / 3.14159265359;
   params.stripes_before_outlines = params_.stripes_before_outlines_;
   params.enable_stripe_angle_orientation = params_.enable_orientation_;
 
