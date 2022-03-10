@@ -36,6 +36,10 @@ BoustrophedonPlannerServer::BoustrophedonPlannerServer()
     polygon_points_publisher_ = private_node_handle_.advertise<geometry_msgs::PointStamped>("polygon_points", 1000);
   }
 
+  if (only_subscribed_parameters_)
+  {
+    last_status_ = std::string("Initial parameters not yet received.");
+  }
 }
 
 std::size_t BoustrophedonPlannerServer::fetchParams()
@@ -83,6 +87,8 @@ std::size_t BoustrophedonPlannerServer::fetchParams()
       !rosparam_shortcuts::get("plan_path", private_node_handle_, "stripes_before_outlines", new_params.stripes_before_outlines_));
   error += static_cast<std::size_t>(
       !rosparam_shortcuts::get("plan_path", private_node_handle_, "parameters_topic", parameters_topic_));
+  error += static_cast<std::size_t>(
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "only_subscribed_parameters", only_subscribed_parameters_));
 
   rosparam_shortcuts::shutdownIfError("plan_path", error);
 
@@ -133,6 +139,8 @@ void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::
       break;
   }
   loadParams(new_params);
+
+  last_status_.clear();
 }
 
 std::size_t BoustrophedonPlannerServer::loadParams(Parameters new_params)
@@ -263,6 +271,10 @@ std::vector<NavPoint> BoustrophedonPlannerServer::executePlanPathInternal(
                                                     Parameters params)
 {
   // std::string boundaexecutePlanPathInternalry_frame = goal->property.header.frame_id;
+  if (std::string("Initial parameters not yet received.") == last_status_)
+  {
+    return {};
+  }
   last_status_.clear();
 
   ROS_INFO_STREAM("using Angle: " << params.stripe_angle_ * 180 / 3.14159265359 << " and Spacing: " << params.stripe_separation_);
