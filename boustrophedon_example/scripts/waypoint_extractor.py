@@ -85,7 +85,7 @@ def plan_to_path(plan):
 def read_points_from_file(file_path):
     with open(file_path) as f:
         path_points = [tuple(line) for line in csv.reader(f)]
-    print path_points
+    print(path_points)
     return path_points
 
 
@@ -100,7 +100,7 @@ def load_yaml_file():
 def read_field_file(field_yaml):
     # Parse out the points and return resulting Polygon
 
-    print "reading from", field_yaml
+    print("reading from", field_yaml)
     polygon_points = []
     point_count = 0
     for point in field_yaml:
@@ -111,7 +111,7 @@ def read_field_file(field_yaml):
         (easting, northing) = (point['easting'], point['northing'])
         polygon_points.append((float(easting), float(northing)))
 
-    print "input poly =", polygon_points
+    print("input poly =", polygon_points)
 
     return polygon_points
 
@@ -127,7 +127,7 @@ def get_heading(start_point, end_point):
     if np.isclose(dx, 0.0):
         dx = 0
     heading = atan2(dy, dx)
-    # print "heading calc:", dy, dx, heading
+    # print("heading calc:", dy, dx, heading)
 
     return heading
 
@@ -182,10 +182,10 @@ def clean_dead_end_paths(path, types):
 
         heading_diff = path[index+1][2] - path[index][2]
 
-        # print "index:", index, "got angle of", heading_diff * 180 / pi
+        # print("index:", index, "got angle of", heading_diff * 180 / pi)
 
         if np.isclose(heading_diff % pi, 0) and not np.isclose(heading_diff, 0):
-            # print "at index:", index, "found a turnaround"
+            # print("at index:", index, "found a turnaround")
             skip_next = True
             lookback_index = 1
             # traceback all colinear points leading to the current one
@@ -218,16 +218,16 @@ def clean_colinear_points_in_path(path):
         # checks [index + 1] point if we need it in the path. This relocates points into the next one
         # until the check detects that the two next points don't line up with each other
         if path[index] == path[index + 1]:
-            print index, " == ", index + 1, ":", path[index]
+            print(index, " == ", index + 1, ":", path[index])
             s = set(index_blacklist)
             if index in s:
                 index_blacklist.append(index + 1)
-                print index + 1, "also added for rewriting"
+                print(index + 1, "also added for rewriting")
             else:
                 new_path.append(path[index+1])
             continue
         if point_is_within_previous_pathline(path[index+2], path[index], path[index+1]):
-            print index + 1, "needs rewriting, point:", path[index+1]
+            print(index + 1, "needs rewriting, point:", path[index+1])
             # new_path.append(path[index+2])
             index_blacklist.append(index + 1)
         else:
@@ -333,7 +333,7 @@ def populate_plan_path_input(polygon):
 def send_polygon(polygon, robot_pose):
     pub_node = populate_plan_path_input(polygon)
     pub.publish(pub_node)
-    print "sent to coverage planner"
+    print("sent to coverage planner")
 
 
 def getStraightPath(start_x, start_y, goal_x, goal_y, start_or_z, start_or_w, goal_or_z, goal_or_w, dist):
@@ -401,9 +401,9 @@ def parse_striping_points(striping_points):
             points.append((i.point.x, i.point.y))
             types.append(i.type)
 
-    # print len(points), len(types)
+    # print(len(points), len(types))
     # for idx, i in enumerate(points):
-    #     print i[0], i[1], types[idx]
+    #     print(i[0], i[1], types[idx])
 
     # points = clean_colinear_points_in_path(points)
     points = calculate_headings(points)
@@ -413,13 +413,13 @@ def parse_striping_points(striping_points):
     # (points, types) = add_intermediaries(points, types, 0.3)
 
     # for idx, i in enumerate(points):
-    #     print i[0], i[1], (types[idx] * 180 / pi), i[2]
+    #     print(i[0], i[1], (types[idx] * 180 / pi), i[2])
     save_to_csv(points, types)
 
     # for idx, i in enumerate(points):
-    #     print i[0], i[1], types[idx], i[2]
+    #     print(i[0], i[1], types[idx], i[2]
 
-    # print len(points), len(types)
+    # print(len(points), len(types))
 
     #
     # Check output
@@ -435,7 +435,7 @@ def save_to_csv(points, types=[]):
         os.makedirs(file_dir + '/waypoints/')
     file = open(file_full_path, 'w')
     for index, point in enumerate(points):
-        # print point[0], point[1], point[2], types[index]
+        # print(point[0], point[1], point[2], types[index])
         zero_point_approach = False
         if types[index] == 2 or types[index] == 0:
             zero_point_approach = True
@@ -499,7 +499,7 @@ def visually_trace_waypoint(points, types, slow=False):
         y_plt.append(point[1])
         type_plt.append(types[index])
 
-        # print "plotting:", point[0], point[1], types[index]
+        # print("plotting:", point[0], point[1], types[index])
 
         line_plt = plt.Line2D(y_plt[-2:], x_plt[-2:])
 
@@ -609,7 +609,7 @@ if __name__ == '__main__':
     cut_direction = 16
     rospy.set_param("/boustrophedon_server/stripe_angle", cut_direction * pi / 180.0)
 
-    print "successfully read map. sending polygon.."
+    print("successfully read map. sending polygon..")
     robot_pose = get_robot_pose()
     (points, types) = send_polygon_blocking(polygon, robot_pose)
     # Add True param to trace the path one by one
@@ -624,7 +624,7 @@ if __name__ == '__main__':
             cut_direction = 0.
         rospy.set_param("/boustrophedon_server/stripe_angle", cut_direction * pi / 180.0)
 
-        print "successfully read map. sending polygon.."
+        print("successfully read map. sending polygon..")
         robot_pose = get_robot_pose()
         (points, types) = send_polygon_blocking(polygon, robot_pose)
         visually_trace_waypoint(points, types)
