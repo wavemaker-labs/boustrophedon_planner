@@ -1,5 +1,5 @@
 <launch>
-    <arg name="repeat_boundary" default="true"/>
+    <arg name="repeat_boundary" default="false"/>
     <arg name="outline_clockwise" default="true"/>
     <arg name="skip_outlines" default="false"/>
     <arg name="outline_layer_count" default="0"/>
@@ -14,8 +14,8 @@
     <!-- In UI settings just input 1, 2, or 3 under turn_type. 0 to follow boundary normally-->
     <!-- Note: if enabling half-y turns, must have an outline_layer_count >= 1 -->
     <arg name="enable_half_y_turns" default="false" />
-    <arg name="enable_full_u_turns" default="false" />
-    <arg name="enable_bulb_turns" default="true" />
+    <arg name="enable_full_u_turns" default="true" />
+    <arg name="enable_bulb_turns" default="false" />
     <arg name="points_per_turn" default="20" />
     <arg name="turn_start_offset" default="0.0" />
     <!-- u turn radius works only if enable_bulb_turns is enabled -->
