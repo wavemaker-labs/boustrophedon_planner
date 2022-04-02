@@ -1,13 +1,13 @@
 <launch>
     <arg name="repeat_boundary" default="false"/>
-    <arg name="outline_clockwise" default="true"/>
+    <arg name="outline_clockwise" default="false"/>
     <arg name="skip_outlines" default="false"/>
     <arg name="outline_layer_count" default="0"/>
     <arg name="stripe_separation" default="1.2"/>
     <arg name="intermediary_separation" default="0.0"/>
     <arg name="stripe_angle" default="0.0"/>
     <arg name="enable_stripe_angle_orientation" default="false" />
-    <arg name="travel_along_boundary" default="true" />
+    <arg name="travel_along_boundary" default="false" />
     <arg name="allow_points_outside_boundary" default="false" />
     <arg name="stripes_before_outlines" default="false" />
     <!-- Only choose one between 1) half 2) full or 3) bulb turns -->
