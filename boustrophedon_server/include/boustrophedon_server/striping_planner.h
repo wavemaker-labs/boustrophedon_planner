@@ -20,7 +20,7 @@ public:
 
     // Determines whether the path will travel along the boundary to get to the start and end points of the striping
     // path. Also makes the mower return to the starting point when finished.
-    bool travel_along_boundary = true;
+    bool travel_along_boundary = false;
 
     // Determines whether a half-y-turn arc will be added to the path between each stripe, to smooth out turning.
     bool enable_half_y_turn = true;

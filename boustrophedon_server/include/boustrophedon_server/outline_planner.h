@@ -14,7 +14,7 @@ public:
     bool repeat_boundary = false;
     /** If true, the path will follow a clockwise outline (including interior outlines). Else, counter-clockwise.
      */
-    bool outline_clockwise = true;
+    bool outline_clockwise = false;
     /** If true, the planner will skip any outline tracing and go straight to striping.
      */
     bool skip_outlines = false;
