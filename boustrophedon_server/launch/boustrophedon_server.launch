@@ -1,5 +1,5 @@
 <launch>
-    <arg name="repeat_boundary" default="true"/>
+    <arg name="repeat_boundary" default="false"/>
     <arg name="outline_clockwise" default="true"/>
     <arg name="skip_outlines" default="false"/>
     <arg name="outline_layer_count" default="0"/>
