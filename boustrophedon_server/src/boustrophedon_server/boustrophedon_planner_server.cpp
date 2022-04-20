@@ -237,7 +237,11 @@ void BoustrophedonPlannerServer::configAndExecutePlanPathAction(const boustrophe
   auto path = executePlanPathInternal(goal, params_);
   auto result = toResult(std::move(path), boundary_frame);
 
-  if (last_status_.empty())
+  if (action_server_with_param_.isPreemptRequested())
+  {
+    action_server_with_param_.setPreempted();
+  }
+  else if (last_status_.empty())
   {
     boustrophedon_msgs::PlanMowingPathParamResult result_with_param;
     result_with_param.plan = result.plan;
@@ -256,13 +260,22 @@ void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs:
   std::string boundary_frame = goal->property.header.frame_id;
   auto path = executePlanPathInternal(*goal, params_);
   auto result = toResult(std::move(path), boundary_frame);
-  if (last_status_.empty())
+  double request_angle = params_.stripe_angle_ * 180.0 / 3.1415927;
+  if (action_server_.isPreemptRequested())
   {
-    action_server_.setSucceeded(result);
+    ROS_INFO_STREAM("Preempt requested. Cancelling plan. angle: " << request_angle);
+    last_status_ = "Request cancelled by client. angle: " + std::to_string(request_angle);
+    action_server_.setPreempted(Server::Result(), last_status_);
+  }
+  else if (last_status_.empty())
+  {
+    action_server_.setSucceeded(result, std::to_string(request_angle));
+    ROS_INFO_STREAM("Success result sent.");
   }
   else
   {
     action_server_.setAborted(Server::Result(), last_status_);
+    ROS_INFO_STREAM("Error result sent.");
   }
 }
 
@@ -419,18 +432,21 @@ bool BoustrophedonPlannerServer::convertStripingPlanToPath(boustrophedon_msgs::C
   response.path.header.frame_id = request.plan.header.frame_id;
   response.path.header.stamp = request.plan.header.stamp;
 
-  std::transform(request.plan.points.begin(), request.plan.points.end(), response.path.poses.begin(),
-                 [&](const boustrophedon_msgs::StripingPoint& point) {
-                   geometry_msgs::PoseStamped pose;
-                   pose.header.frame_id = request.plan.header.frame_id;
-                   pose.header.stamp = request.plan.header.stamp;
-                   pose.pose.position = point.point;
-                   pose.pose.orientation.x = 0.0;
-                   pose.pose.orientation.y = 0.0;
-                   pose.pose.orientation.z = 0.0;
-                   pose.pose.orientation.w = 1.0;
-                   return pose;
+  geometry_msgs::PoseStamped pose_prefilled;
+  pose_prefilled.header.frame_id = request.plan.header.frame_id;
+  pose_prefilled.header.stamp = request.plan.header.stamp;
+  pose_prefilled.pose.orientation.x = 0.0;
+  pose_prefilled.pose.orientation.y = 0.0;
+  pose_prefilled.pose.orientation.z = 0.0;
+  pose_prefilled.pose.orientation.w = 1.0;
+
+  std::transform(request.plan.points.begin(), request.plan.points.end(), std::back_inserter(response.path.poses),
+                 [pose_prefilled](const boustrophedon_msgs::StripingPoint& point) {
+                   auto new_pose = pose_prefilled;
+                   new_pose.pose.position = point.point;
+                   return new_pose;
                  });
+
   return true;
 }
 

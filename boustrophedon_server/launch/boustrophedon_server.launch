@@ -20,10 +20,10 @@
     <arg name="turn_start_offset" default="0.0" />
     <!-- u turn radius works only if enable_bulb_turns is enabled -->
     <arg name="u_turn_radius" default="1.0" />
-    <arg name="publish_polygons" default="true"/>
-    <arg name="publish_path_points" default="true"/>
+    <arg name="publish_polygons" default="false"/>
+    <arg name="publish_path_points" default="false"/>
     <arg name="parameters_topic" default="/user_bplanner_config_update"/>
-    <!-- set below to false if plan should fail until first parameters from topic received -->
+    <!-- set below to true if plan should fail until first parameters from topic received -->
     <arg name="only_subscribed_parameters" default="true" />
 
     <node pkg="boustrophedon_server" type="boustrophedon_planner_server" name="boustrophedon_server" output="screen" respawn="true">
