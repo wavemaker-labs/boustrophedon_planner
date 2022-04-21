@@ -240,10 +240,19 @@ Polygon mergePolygons(const Polygon& poly_1, const Polygon& poly_2)
         poly_1_ending = poly_1_circulator;
         break;
       }
+
     }
     poly_1_circulator++;
 
   } while (poly_1_circulator != poly_1.vertices_circulator());
+
+  // a weird case where there is only one shared vertex
+  // we can't merge this subpoly if that's the case
+  if (nullptr == poly_1_ending.container())
+  {
+    new_poly = poly_1;
+    return new_poly;
+  }
 
   // add all of the points from poly_1_circulator to poly_1_circulator - 1 , inclusive, to new_poly
   // this gives us all the points in polygon 1, ending on the leading edge of the boundary between the two polygons
