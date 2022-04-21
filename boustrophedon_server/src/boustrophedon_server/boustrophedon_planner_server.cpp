@@ -237,11 +237,7 @@ void BoustrophedonPlannerServer::configAndExecutePlanPathAction(const boustrophe
   auto path = executePlanPathInternal(goal, params_);
   auto result = toResult(std::move(path), boundary_frame);
 
-  if (action_server_with_param_.isPreemptRequested())
-  {
-    action_server_with_param_.setPreempted();
-  }
-  else if (last_status_.empty())
+  if (last_status_.empty())
   {
     boustrophedon_msgs::PlanMowingPathParamResult result_with_param;
     result_with_param.plan = result.plan;
@@ -261,13 +257,7 @@ void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs:
   auto path = executePlanPathInternal(*goal, params_);
   auto result = toResult(std::move(path), boundary_frame);
   double request_angle = params_.stripe_angle_ * 180.0 / 3.1415927;
-  if (action_server_.isPreemptRequested())
-  {
-    ROS_INFO_STREAM("Preempt requested. Cancelling plan. angle: " << request_angle);
-    last_status_ = "Request cancelled by client. angle: " + std::to_string(request_angle);
-    action_server_.setPreempted(Server::Result(), last_status_);
-  }
-  else if (last_status_.empty())
+  if (last_status_.empty())
   {
     action_server_.setSucceeded(result, std::to_string(request_angle));
     ROS_INFO_STREAM("Success result sent.");
