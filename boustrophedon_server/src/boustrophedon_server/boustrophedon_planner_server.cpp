@@ -230,23 +230,49 @@ void BoustrophedonPlannerServer::configAndExecutePlanPathAction(const boustrophe
   goal.property = goalWithParams->property;
   goal.robot_position = goalWithParams->robot_position;
 
+  auto cached_params = params_;
   updateParamsInternal(goalWithParams->parameters);
 
   std::string boundary_frame = goalWithParams->property.header.frame_id;
 
   auto path = executePlanPathInternal(goal, params_);
   auto result = toResult(std::move(path), boundary_frame);
+  double request_angle = params_.stripe_angle_ * 180.0 / 3.1415927;
 
   if (last_status_.empty())
   {
     boustrophedon_msgs::PlanMowingPathParamResult result_with_param;
     result_with_param.plan = result.plan;
-    action_server_with_param_.setSucceeded(result_with_param);
+    action_server_with_param_.setSucceeded(result_with_param, std::to_string(request_angle));
+    ROS_INFO_STREAM("Success result sent.");
   }
   else
   {
     action_server_with_param_.setAborted(ServerWithParam::Result(), last_status_);
+    ROS_INFO_STREAM("Error result sent.");
   }
+
+  // Restore previous parameters
+  params_ = cached_params;
+
+  striping_planner_.setParameters({
+        params_.stripe_separation_,
+        params_.intermediary_separation_,
+        params_.travel_along_boundary_,
+        params_.enable_half_y_turns_,
+        params_.enable_full_u_turns_,
+        params_.enable_bulb_turns_,
+        params_.points_per_turn_,
+        params_.turn_start_offset_,
+        params_.u_turn_radius_
+      });
+  outline_planner_.setParameters({
+        params_.repeat_boundary_,
+        params_.outline_clockwise_,
+        params_.skip_outlines_,
+        params_.outline_layer_count_,
+        params_.stripe_separation_
+      });
 
   //todo: return-update to rosparam server. For now the action client holds the responsibility (not this callback)
 }
