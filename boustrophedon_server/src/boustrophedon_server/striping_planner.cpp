@@ -709,6 +709,10 @@ bool StripingPlanner::isLeftClosest(const Polygon& polygon, const Point& robot_p
   starting_points.insert(starting_points.end(), right_points.begin(), right_points.end());
   std::sort(starting_points.begin(), starting_points.end(), compare_current_point_distance);
 
+  // if we cannot determine, fix this to false
+  if (starting_points.empty())
+    return false;
+
   // if the closest potential starting point is on the left, return true. If not, return false.
   return starting_points.front().x() == min_x;
 }
