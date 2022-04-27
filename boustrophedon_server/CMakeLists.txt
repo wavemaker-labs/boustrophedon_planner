@@ -12,7 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   rosparam_shortcuts
   )
-
+find_package(sentry)
 find_package(CGAL REQUIRED COMPONENTS Core)
 catkin_package(
   INCLUDE_DIRS include
@@ -54,6 +54,8 @@ target_link_libraries(boustrophedon_planner_server
   CGAL::CGAL
   CGAL::CGAL_Core)
 add_dependencies(boustrophedon_planner_server ${catkin_EXPORTED_TARGETS})
+
+target_link_libraries(boustrophedon_planner_server sentry)
 
 install(
   TARGETS
