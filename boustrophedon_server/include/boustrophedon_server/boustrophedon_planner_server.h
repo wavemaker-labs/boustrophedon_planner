@@ -69,6 +69,7 @@ private:
   tf::TransformListener transform_listener_{};
   bool publish_polygons_{};
   bool publish_path_points_{};
+  bool only_subscribed_parameters_{};
   std::string last_status_{};
 
   bool convertStripingPlanToPath(boustrophedon_msgs::ConvertPlanToPath::Request& request,

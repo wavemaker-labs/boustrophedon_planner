@@ -3,7 +3,7 @@
     <arg name="outline_clockwise" default="false"/>
     <arg name="skip_outlines" default="false"/>
     <arg name="outline_layer_count" default="0"/>
-    <arg name="stripe_separation" default="1.2"/>
+    <arg name="stripe_separation" default="1.0"/>
     <arg name="intermediary_separation" default="0.0"/>
     <arg name="stripe_angle" default="0.0"/>
     <arg name="enable_stripe_angle_orientation" default="false" />
@@ -20,9 +20,11 @@
     <arg name="turn_start_offset" default="0.0" />
     <!-- u turn radius works only if enable_bulb_turns is enabled -->
     <arg name="u_turn_radius" default="1.0" />
-    <arg name="publish_polygons" default="true"/>
-    <arg name="publish_path_points" default="true"/>
+    <arg name="publish_polygons" default="false"/>
+    <arg name="publish_path_points" default="false"/>
     <arg name="parameters_topic" default="/user_bplanner_config_update"/>
+    <!-- set below to true if plan should fail until first parameters from topic received -->
+    <arg name="only_subscribed_parameters" default="true" />
 
     <node pkg="boustrophedon_server" type="boustrophedon_planner_server" name="boustrophedon_server" output="screen" respawn="true">
         <param name="repeat_boundary" value="$(arg repeat_boundary)"/>
@@ -45,5 +47,6 @@
         <param name="publish_polygons" value="$(arg publish_polygons)"/>
         <param name="publish_path_points" value="$(arg publish_path_points)"/>
         <param name="parameters_topic" value="$(arg parameters_topic)"/>
+        <param name="only_subscribed_parameters" value="$(arg only_subscribed_parameters)" />
     </node>
 </launch>

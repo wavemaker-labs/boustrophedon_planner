@@ -36,6 +36,10 @@ BoustrophedonPlannerServer::BoustrophedonPlannerServer()
     polygon_points_publisher_ = private_node_handle_.advertise<geometry_msgs::PointStamped>("polygon_points", 1000);
   }
 
+  if (only_subscribed_parameters_)
+  {
+    last_status_ = std::string("Initial parameters not yet received.");
+  }
 }
 
 std::size_t BoustrophedonPlannerServer::fetchParams()
@@ -83,6 +87,8 @@ std::size_t BoustrophedonPlannerServer::fetchParams()
       !rosparam_shortcuts::get("plan_path", private_node_handle_, "stripes_before_outlines", new_params.stripes_before_outlines_));
   error += static_cast<std::size_t>(
       !rosparam_shortcuts::get("plan_path", private_node_handle_, "parameters_topic", parameters_topic_));
+  error += static_cast<std::size_t>(
+      !rosparam_shortcuts::get("plan_path", private_node_handle_, "only_subscribed_parameters", only_subscribed_parameters_));
 
   rosparam_shortcuts::shutdownIfError("plan_path", error);
 
@@ -133,6 +139,8 @@ void BoustrophedonPlannerServer::updateParamsInternal(const boustrophedon_msgs::
       break;
   }
   loadParams(new_params);
+
+  last_status_.clear();
 }
 
 std::size_t BoustrophedonPlannerServer::loadParams(Parameters new_params)
@@ -222,23 +230,49 @@ void BoustrophedonPlannerServer::configAndExecutePlanPathAction(const boustrophe
   goal.property = goalWithParams->property;
   goal.robot_position = goalWithParams->robot_position;
 
+  auto cached_params = params_;
   updateParamsInternal(goalWithParams->parameters);
 
   std::string boundary_frame = goalWithParams->property.header.frame_id;
 
   auto path = executePlanPathInternal(goal, params_);
   auto result = toResult(std::move(path), boundary_frame);
+  double request_angle = params_.stripe_angle_ * 180.0 / 3.1415927;
 
   if (last_status_.empty())
   {
     boustrophedon_msgs::PlanMowingPathParamResult result_with_param;
     result_with_param.plan = result.plan;
-    action_server_with_param_.setSucceeded(result_with_param);
+    action_server_with_param_.setSucceeded(result_with_param, std::to_string(request_angle));
+    ROS_INFO_STREAM("Success result sent.");
   }
   else
   {
     action_server_with_param_.setAborted(ServerWithParam::Result(), last_status_);
+    ROS_INFO_STREAM("Error result sent.");
   }
+
+  // Restore previous parameters
+  params_ = cached_params;
+
+  striping_planner_.setParameters({
+        params_.stripe_separation_,
+        params_.intermediary_separation_,
+        params_.travel_along_boundary_,
+        params_.enable_half_y_turns_,
+        params_.enable_full_u_turns_,
+        params_.enable_bulb_turns_,
+        params_.points_per_turn_,
+        params_.turn_start_offset_,
+        params_.u_turn_radius_
+      });
+  outline_planner_.setParameters({
+        params_.repeat_boundary_,
+        params_.outline_clockwise_,
+        params_.skip_outlines_,
+        params_.outline_layer_count_,
+        params_.stripe_separation_
+      });
 
   //todo: return-update to rosparam server. For now the action client holds the responsibility (not this callback)
 }
@@ -248,13 +282,16 @@ void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs:
   std::string boundary_frame = goal->property.header.frame_id;
   auto path = executePlanPathInternal(*goal, params_);
   auto result = toResult(std::move(path), boundary_frame);
+  double request_angle = params_.stripe_angle_ * 180.0 / 3.1415927;
   if (last_status_.empty())
   {
-    action_server_.setSucceeded(result);
+    action_server_.setSucceeded(result, std::to_string(request_angle));
+    ROS_INFO_STREAM("Success result sent.");
   }
   else
   {
     action_server_.setAborted(Server::Result(), last_status_);
+    ROS_INFO_STREAM("Error result sent.");
   }
 }
 
@@ -263,6 +300,10 @@ std::vector<NavPoint> BoustrophedonPlannerServer::executePlanPathInternal(
                                                     Parameters params)
 {
   // std::string boundaexecutePlanPathInternalry_frame = goal->property.header.frame_id;
+  if (std::string("Initial parameters not yet received.") == last_status_)
+  {
+    return {};
+  }
   last_status_.clear();
 
   ROS_INFO_STREAM("using Angle: " << params.stripe_angle_ * 180 / 3.14159265359 << " and Spacing: " << params.stripe_separation_);
@@ -407,18 +448,21 @@ bool BoustrophedonPlannerServer::convertStripingPlanToPath(boustrophedon_msgs::C
   response.path.header.frame_id = request.plan.header.frame_id;
   response.path.header.stamp = request.plan.header.stamp;
 
-  std::transform(request.plan.points.begin(), request.plan.points.end(), response.path.poses.begin(),
-                 [&](const boustrophedon_msgs::StripingPoint& point) {
-                   geometry_msgs::PoseStamped pose;
-                   pose.header.frame_id = request.plan.header.frame_id;
-                   pose.header.stamp = request.plan.header.stamp;
-                   pose.pose.position = point.point;
-                   pose.pose.orientation.x = 0.0;
-                   pose.pose.orientation.y = 0.0;
-                   pose.pose.orientation.z = 0.0;
-                   pose.pose.orientation.w = 1.0;
-                   return pose;
+  geometry_msgs::PoseStamped pose_prefilled;
+  pose_prefilled.header.frame_id = request.plan.header.frame_id;
+  pose_prefilled.header.stamp = request.plan.header.stamp;
+  pose_prefilled.pose.orientation.x = 0.0;
+  pose_prefilled.pose.orientation.y = 0.0;
+  pose_prefilled.pose.orientation.z = 0.0;
+  pose_prefilled.pose.orientation.w = 1.0;
+
+  std::transform(request.plan.points.begin(), request.plan.points.end(), std::back_inserter(response.path.poses),
+                 [pose_prefilled](const boustrophedon_msgs::StripingPoint& point) {
+                   auto new_pose = pose_prefilled;
+                   new_pose.pose.position = point.point;
+                   return new_pose;
                  });
+
   return true;
 }
 

@@ -245,6 +245,9 @@ bool PolygonDecomposer::findAbovePoint(Point& above, const Point& critical_point
   }
 
   // the critical point was found, but there might not be a next point in the list
+  if (it == points.end())
+    return false;
+
   auto next = it + 1;
   if (next != points.end())
   {

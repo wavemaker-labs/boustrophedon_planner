@@ -19,6 +19,11 @@ void StripingPlanner::addToPath(const Polygon& polygon, const Polygon& sub_polyg
 
   fillPolygon(sub_polygon, new_path_section, robot_position);
 
+  if (new_path_section.empty())
+  {
+    return;
+  }
+
   if (params_.travel_along_boundary)
   {
     std::vector<NavPoint> start_to_striping =
@@ -134,7 +139,8 @@ void StripingPlanner::fillPolygon(const Polygon& polygon, std::vector<NavPoint>&
         }
         else
         {
-          auto edge_delta = 2.0 * (params_.stripe_separation + params_.u_turn_radius);
+          auto factor = params_.enable_bulb_turn ? 5.0 : 3.0;
+          auto edge_delta = factor * (params_.stripe_separation + params_.u_turn_radius);
 
           // do not make an arc turn if the difference between the two edge points make the plan go over the safety edge
           // instead revert to following the boundary edge to get to the next point
@@ -229,10 +235,16 @@ bool StripingPlanner::isTurnAreaSufficient(const std::vector<NavPoint>& path, co
   }
 
   double turn_offset{0.0};
+
+  double boundary_angle = atan2(fabs(path.back().point.y() - next_stripe.front().y()), params_.stripe_separation);
+  double setback_factor = 1.2 * (1 - sin(boundary_angle)) / cos(boundary_angle);
   if (params_.enable_bulb_turn)
-    turn_offset = std::max(2.5 * params_.u_turn_radius, 2 * params_.stripe_separation);
+  {
+    turn_offset = std::max(4.6 * params_.u_turn_radius, 2.3 * params_.stripe_separation);
+    // turn_offset += turn_offset * setback_factor;
+  }
   else
-    turn_offset = params_.stripe_separation;
+    turn_offset = params_.stripe_separation * 2.3 + params_.stripe_separation * setback_factor;
 
   bool allowed = false;
   if (definitelyGreaterThan(abs(path.back().point.y() - path[path.size() - 2].point.y()),
@@ -453,9 +465,6 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
   Point turn_start_neighbor;
   Point turn_end_neighbor;
 
-  BSpline arc_entry_curve;
-  BSpline arc_exit_curve;
-
   std::vector<NavPoint> arc;
   std::vector<NavPoint> arc_trace;
   double arc_center_offset;
@@ -475,12 +484,13 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
     rad_offset = 0.0;
   }
 
-  arc_entry_curve.set_steps(params_.points_per_turn);
-  arc_exit_curve.set_steps(params_.points_per_turn);
-
   double arc_radius = arc_center_offset + params_.stripe_separation / 2.0;
   double start_rad, start_rad_offset;
   double end_rad, end_rad_offset;
+
+  // for now this edge boundary turning is only guaranteed for non-bulb u-turns
+  double boundary_angle = atan2(fabs(path.back().point.y() - next_stripe_start.y()), params_.stripe_separation);
+  double turn_setback = arc_radius * (1 - sin(boundary_angle)) / cos(boundary_angle);
 
   constexpr double k_lookahead_factor = 2.3;
 
@@ -495,8 +505,8 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
     // the arc is centered between the two stripes
     arc_center_point =
           Point((path.back().point.x() + next_stripe_start.x()) / 2.0,
-                (path.back().point.y() + next_stripe_start.y()) / 2.0
-                 + params_.turn_start_offset - arc_radius);
+                std::min(path.back().point.y(), next_stripe_start.y())
+                 + params_.turn_start_offset - turn_setback);
 
     // Common circular arc, starts from PI and ends at 0 (upper semicircle from left to right)
     start_rad = CGAL_PI;
@@ -505,11 +515,11 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
     end_rad_offset = 0.0 - rad_offset;
 
     turn_start_point = Point(path.back().point.x(),
-                             (path.back().point.y() + next_stripe_start.y()) / 2.0
-                             + params_.turn_start_offset - k_lookahead_factor * arc_radius);
+                             std::min(path.back().point.y(), next_stripe_start.y())
+                             + params_.turn_start_offset - arc_radius * k_lookahead_factor);
     turn_end_point = Point(next_stripe_start.x(),
-                             (path.back().point.y() + next_stripe_start.y()) / 2.0
-                             + params_.turn_start_offset - k_lookahead_factor * arc_radius);
+                           std::min(path.back().point.y(), next_stripe_start.y())
+                           + params_.turn_start_offset - arc_radius * k_lookahead_factor);
     turn_start_neighbor = Point(turn_start_point.x(), turn_start_point.y() + 0.1);
     turn_end_neighbor = Point(turn_end_point.x(), turn_end_point.y() - 0.1);
   }
@@ -520,8 +530,8 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
     // the arc is centered between the two stripes
     arc_center_point =
           Point((path.back().point.x() + next_stripe_start.x()) / 2.0,
-                (path.back().point.y() + next_stripe_start.y()) / 2.0
-                 - params_.turn_start_offset + arc_radius);
+                std::max(path.back().point.y(), next_stripe_start.y())
+                 - params_.turn_start_offset + turn_setback);
 
     // Common circular arc, starts from CGAL_PI and ends at CGAL_PI * 2 (lower semicircle, left to right)
     start_rad = CGAL_PI;
@@ -530,11 +540,11 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
     end_rad_offset = CGAL_PI * 2 + rad_offset;
 
     turn_start_point = Point(path.back().point.x(),
-                             (path.back().point.y() + next_stripe_start.y()) / 2.0
-                             + params_.turn_start_offset + k_lookahead_factor * arc_radius);
+                             std::max(path.back().point.y(), next_stripe_start.y())
+                             - params_.turn_start_offset + arc_radius * k_lookahead_factor);
     turn_end_point = Point(next_stripe_start.x(),
-                             (path.back().point.y() + next_stripe_start.y()) / 2.0
-                             + params_.turn_start_offset + k_lookahead_factor * arc_radius);
+                           std::max(path.back().point.y(), next_stripe_start.y())
+                           - params_.turn_start_offset + arc_radius * k_lookahead_factor);
     turn_start_neighbor = Point(turn_start_point.x(), turn_start_point.y() - 0.1);
     turn_end_neighbor = Point(turn_end_point.x(), turn_end_point.y() + 0.1);
   }
@@ -545,8 +555,8 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
     // the arc is centered between the two stripes
     arc_center_point =
           Point((path.back().point.x() + next_stripe_start.x()) / 2.0,
-                (path.back().point.y() + next_stripe_start.y()) / 2.0
-                 + params_.turn_start_offset - arc_radius);
+                std::min(path.back().point.y(), next_stripe_start.y())
+                 + params_.turn_start_offset - turn_setback);
 
     // Common circular arc, starts from 0 and ends at CGAL_PI (upper semicircle, right to left)
     start_rad = 0.0;
@@ -555,11 +565,11 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
     end_rad_offset = CGAL_PI + rad_offset;
 
     turn_start_point = Point(path.back().point.x(),
-                             (path.back().point.y() + next_stripe_start.y()) / 2.0
-                             + params_.turn_start_offset - k_lookahead_factor * arc_radius);
+                             std::min(path.back().point.y(), next_stripe_start.y())
+                             + params_.turn_start_offset - arc_radius * k_lookahead_factor);
     turn_end_point = Point(next_stripe_start.x(),
-                             (path.back().point.y() + next_stripe_start.y()) / 2.0
-                             + params_.turn_start_offset - k_lookahead_factor * arc_radius);
+                           std::min(path.back().point.y(), next_stripe_start.y())
+                             + params_.turn_start_offset - arc_radius * k_lookahead_factor);
     turn_start_neighbor = Point(turn_start_point.x(), turn_start_point.y() + 0.1);
     turn_end_neighbor = Point(turn_end_point.x(), turn_end_point.y() - 0.1);
   }
@@ -570,8 +580,8 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
     // the arc is centered between the two stripes
     arc_center_point =
           Point((path.back().point.x() + next_stripe_start.x()) / 2.0,
-                (path.back().point.y() + next_stripe_start.y()) / 2.0
-                 - params_.turn_start_offset + arc_radius);
+                std::max(path.back().point.y(), next_stripe_start.y())
+                 - params_.turn_start_offset + turn_setback);
 
     // Common circular arc, starts from CGAL_PI * 2 and ends at CGAL_PI (lower semicircle, right to left)
     start_rad = CGAL_PI * 2;
@@ -580,11 +590,11 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
     end_rad_offset = CGAL_PI - rad_offset;
 
     turn_start_point = Point(path.back().point.x(),
-                             (path.back().point.y() + next_stripe_start.y()) / 2.0
-                             + params_.turn_start_offset + k_lookahead_factor * arc_radius);
+                             std::max(path.back().point.y(), next_stripe_start.y())
+                             - params_.turn_start_offset + arc_radius * k_lookahead_factor);
     turn_end_point = Point(next_stripe_start.x(),
-                             (path.back().point.y() + next_stripe_start.y()) / 2.0
-                             + params_.turn_start_offset + k_lookahead_factor * arc_radius);
+                           std::max(path.back().point.y(), next_stripe_start.y())
+                           - params_.turn_start_offset + arc_radius * k_lookahead_factor);
     turn_start_neighbor = Point(turn_start_point.x(), turn_start_point.y() - 0.1);
     turn_end_neighbor = Point(turn_end_point.x(), turn_end_point.y() + 0.1);
   }
@@ -600,10 +610,6 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
                                start_rad, end_rad,
                                params_.points_per_turn);
 
-  arc_trace = generateDiscretizedArc(arc_center_point,
-                                     arc_radius,
-                                     start_rad_offset, end_rad_offset,
-                                     10);
   // The first point in the arc terminates the stripe, and the last point starts the next stripe
   // arc.front().type = PointType::StripeEnd;
   // arc.insert(arc.end(), NavPoint{ PointType::StripeStart, arc.back().point });
@@ -613,50 +619,62 @@ void StripingPlanner::addFullUTurnPoints(std::vector<NavPoint>& path, const Poin
   path.erase(path.end());
   path.push_back(NavPoint(PointType::StripeEnd, turn_start_point));
 
+  BSpline arc_entry_curve;
+  BSpline arc_exit_curve;
+  arc_entry_curve.set_steps(params_.points_per_turn);
+  arc_exit_curve.set_steps(params_.points_per_turn);
 
-  // curve smoothen start
-  arc_entry_curve.add_way_point(Vector(turn_start_point.x(), turn_start_point.y()));
-  arc_entry_curve.add_way_point(Vector(turn_start_neighbor.x(), turn_start_neighbor.y()));
-  arc_entry_curve.add_way_point(Vector(arc_trace.front().point.x(), arc_trace.front().point.y()));
-  arc_entry_curve.add_way_point(Vector(arc_trace[1].point.x(), arc_trace[1].point.y()));
+  if (params_.enable_bulb_turn)
+  {
+    arc_trace = generateDiscretizedArc(arc_center_point,
+                                      arc_radius,
+                                      start_rad_offset, end_rad_offset,
+                                      10);
+    // curve smoothen start
+    arc_entry_curve.add_way_point(Vector(turn_start_point.x(), turn_start_point.y()));
+    arc_entry_curve.add_way_point(Vector(turn_start_neighbor.x(), turn_start_neighbor.y()));
+    arc_entry_curve.add_way_point(Vector(arc_trace.front().point.x(), arc_trace.front().point.y()));
+    arc_entry_curve.add_way_point(Vector(arc_trace[1].point.x(), arc_trace[1].point.y()));
 
 #define USE_ORIGINAL_CIRCULAR_ARC 1
 #if USE_ORIGINAL_CIRCULAR_ARC
-  arc_entry_curve.add_way_point(Vector(arc.front().point.x(), arc.front().point.y()));
+    arc_entry_curve.add_way_point(Vector(arc.front().point.x(), arc.front().point.y()));
 #else
-  for (auto const& nav_point : arc_trace)
-  {
-    arc_entry_curve.add_way_point(Vector(nav_point.point.x(), nav_point.point.y()));
-  }
-  arc_entry_curve.add_way_point(Vector(turn_end_point.x(), turn_end_point.y()));
-  arc_entry_curve.add_way_point(Vector(turn_end_neighbor.x(), turn_end_neighbor.y()));
+    for (auto const& nav_point : arc_trace)
+    {
+      arc_entry_curve.add_way_point(Vector(nav_point.point.x(), nav_point.point.y()));
+    }
+    arc_entry_curve.add_way_point(Vector(turn_end_point.x(), turn_end_point.y()));
+    arc_entry_curve.add_way_point(Vector(turn_end_neighbor.x(), turn_end_neighbor.y()));
 #endif
 
-  // insert the arc points onto the end of the path
-  for (auto const &vector_pt : arc_entry_curve.nodes())
-  {
-    path.push_back(NavPoint(PointType::StripeIntermediate, Point(vector_pt.x(), vector_pt.y())));
+    // insert the arc points onto the end of the path
+    for (auto const &vector_pt : arc_entry_curve.nodes())
+    {
+      path.push_back(NavPoint(PointType::StripeIntermediate, Point(vector_pt.x(), vector_pt.y())));
+    }
   }
 
 #if USE_ORIGINAL_CIRCULAR_ARC
   // circular turn arc
   path.insert(path.end(), arc.begin(), arc.end());
 
-  // curve smoothen end
-  arc_exit_curve.add_way_point(Vector(arc.back().point.x(), arc.back().point.y()));
-  arc_exit_curve.add_way_point(Vector(arc_trace[arc_trace.size()-2].point.x(), arc_trace[arc_trace.size()-2].point.y()));
-  arc_exit_curve.add_way_point(Vector(arc_trace.back().point.x(), arc_trace.back().point.y()));
-  arc_exit_curve.add_way_point(Vector(turn_end_point.x(), turn_end_point.y()));
-  arc_exit_curve.add_way_point(Vector(turn_end_neighbor.x(), turn_end_neighbor.y()));
-  for (auto const &vector_pt : arc_exit_curve.nodes())
+  if (params_.enable_bulb_turn)
   {
-    path.push_back(NavPoint(PointType::StripeIntermediate, Point(vector_pt.x(), vector_pt.y())));
+    // curve smoothen end
+    arc_exit_curve.add_way_point(Vector(arc.back().point.x(), arc.back().point.y()));
+    arc_exit_curve.add_way_point(Vector(arc_trace[arc_trace.size()-2].point.x(), arc_trace[arc_trace.size()-2].point.y()));
+    arc_exit_curve.add_way_point(Vector(arc_trace.back().point.x(), arc_trace.back().point.y()));
+    arc_exit_curve.add_way_point(Vector(turn_end_point.x(), turn_end_point.y()));
+    arc_exit_curve.add_way_point(Vector(turn_end_neighbor.x(), turn_end_neighbor.y()));
+    for (auto const &vector_pt : arc_exit_curve.nodes())
+    {
+      path.push_back(NavPoint(PointType::StripeIntermediate, Point(vector_pt.x(), vector_pt.y())));
+    }
   }
 #endif
 
   path.push_back(NavPoint(PointType::StripeStart, turn_end_neighbor));
-
-
 }
 
 std::vector<NavPoint> StripingPlanner::generateDiscretizedArc(const Point& center_point, const float& radius,
@@ -690,6 +708,10 @@ bool StripingPlanner::isLeftClosest(const Polygon& polygon, const Point& robot_p
   std::vector<Point> right_points = getIntersectionPoints(polygon, Line(Point(max_x, 0.0), Point(max_x, 1.0)));
   starting_points.insert(starting_points.end(), right_points.begin(), right_points.end());
   std::sort(starting_points.begin(), starting_points.end(), compare_current_point_distance);
+
+  // if we cannot determine, fix this to false
+  if (starting_points.empty())
+    return false;
 
   // if the closest potential starting point is on the left, return true. If not, return false.
   return starting_points.front().x() == min_x;
