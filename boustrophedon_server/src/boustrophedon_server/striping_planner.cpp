@@ -57,6 +57,7 @@ void StripingPlanner::fillPolygon(const Polygon& polygon, std::vector<NavPoint>&
   StripingDirection stripe_dir = StripingDirection::STARTING;
 
   bool left_closest = isLeftClosest(polygon, robot_position, min_x, max_x);
+
   for (auto stripe_num = 0; stripe_num < stripe_count; stripe_num++)
   {
     double x;
@@ -700,8 +701,8 @@ bool StripingPlanner::isLeftClosest(const Polygon& polygon, const Point& robot_p
 {
   // lambda for determining the first striping direction naively
   auto compare_current_point_distance = [&robot_position](const auto& a, const auto& b) {
-    auto comp = CGAL::compare_distance_to_point(robot_position, a, b);
-    return (comp == CGAL::SMALLER);
+    // EQ: revised to look only for nearer x distance
+    return CGAL::abs(robot_position.x() - a.x()) < CGAL::abs(robot_position.x() - b.x());
   };
 
   std::vector<Point> starting_points = getIntersectionPoints(polygon, Line(Point(min_x, 0.0), Point(min_x, 1.0)));
@@ -711,7 +712,10 @@ bool StripingPlanner::isLeftClosest(const Polygon& polygon, const Point& robot_p
 
   // if we cannot determine, fix this to false
   if (starting_points.empty())
+  {
+    std::cout << "WARNING: START POINT NOT FOUND!" << std::endl;
     return false;
+  }
 
   // if the closest potential starting point is on the left, return true. If not, return false.
   return starting_points.front().x() == min_x;
