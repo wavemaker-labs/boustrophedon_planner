@@ -24,18 +24,45 @@ void StripingPlanner::addToPath(const Polygon& polygon, const Polygon& sub_polyg
     return;
   }
 
+  bool trackBoundary = false;
   if (params_.travel_along_boundary)
+  {
+    trackBoundary = true;
+  }
+  else if (path.size() > 0)
+  {
+    // check if the straight line route to next sub-area goes outside the boundary
+    auto intersections = getIntersectionPoints(polygon, Line(path.back().point, new_path_section.front().point));
+
+    if (intersections.size() > 1)
+    {
+      // Determine all intermediate points between intersections
+      auto went_outside = [&polygon](const auto& a, const auto& b) {
+        auto midpoint_x = 0.5 * (a.x() + b.x());
+        auto midpoint_y = 0.5 * (a.y() + b.y());
+        auto result = polygon.bounded_side(Point(midpoint_x, midpoint_y));
+        return (CGAL::ON_UNBOUNDED_SIDE == result);
+      };
+      for (size_t index = 0; index + 1 < intersections.size(); ++index)
+      {
+        if (went_outside(intersections[index], intersections[index + 1]))
+        {
+          trackBoundary = true;
+          break;
+        }
+      }
+    }
+  }
+
+  if (trackBoundary)
   {
     std::vector<NavPoint> start_to_striping =
         getOutlinePathToPoint(polygon, robot_position, new_path_section.front().point);
 
     path.insert(path.end(), start_to_striping.begin(), start_to_striping.end());
-    path.insert(path.end(), new_path_section.begin(), new_path_section.end());
   }
-  else
-  {
-    path.insert(path.end(), new_path_section.begin(), new_path_section.end());
-  }
+  path.insert(path.end(), new_path_section.begin(), new_path_section.end());
+
   robot_position = new_path_section.back().point;
 }
 
