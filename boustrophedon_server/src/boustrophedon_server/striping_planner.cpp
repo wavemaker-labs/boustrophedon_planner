@@ -21,6 +21,7 @@ void StripingPlanner::addToPath(const Polygon& polygon, const Polygon& sub_polyg
 
   if (new_path_section.empty())
   {
+    // std::cout << "New path section is empty!!" << std::endl;
     return;
   }
 
@@ -33,24 +34,41 @@ void StripingPlanner::addToPath(const Polygon& polygon, const Polygon& sub_polyg
   {
     // check if the straight line route to next sub-area goes outside the boundary
     auto intersections = getIntersectionPoints(polygon, Line(path.back().point, new_path_section.front().point));
+    // std::cout << "intersections = [" ;
+    // for (auto const &vertex : intersections)
+    // {
+    //   std::cout << "(" << vertex.x() << ", " << vertex.y() << "), ";
+    // }
+    // std::cout << "]" << std::endl;
 
     if (intersections.size() > 1)
     {
+      // compare intersection point distances from last position. to sort the intersections
+      auto compare_current_point_distance = [&robot_position](const auto& a, const auto& b) {
+        auto comp = CGAL::compare_distance_to_point(robot_position, a, b);
+        return (comp == CGAL::SMALLER);
+      };
+      // sort so we can calculate intermediate points properly
+      std::sort(intersections.begin(), intersections.end(), compare_current_point_distance);
+
       // Determine all intermediate points between intersections
       auto went_outside = [&polygon](const auto& a, const auto& b) {
         auto midpoint_x = 0.5 * (a.x() + b.x());
         auto midpoint_y = 0.5 * (a.y() + b.y());
         auto result = polygon.bounded_side(Point(midpoint_x, midpoint_y));
+
         return (CGAL::ON_UNBOUNDED_SIDE == result);
       };
       for (size_t index = 0; index + 1 < intersections.size(); ++index)
       {
-        if (went_outside(intersections[index], intersections[index + 1]))
+        auto result = went_outside(intersections[index], intersections[index + 1]);
+        if (result)
         {
           trackBoundary = true;
           break;
         }
       }
+      // std::cout << std::boolalpha << "track boundary == " << trackBoundary << std::endl;
     }
   }
 
@@ -729,7 +747,9 @@ bool StripingPlanner::isLeftClosest(const Polygon& polygon, const Point& robot_p
   // lambda for determining the first striping direction naively
   auto compare_current_point_distance = [&robot_position](const auto& a, const auto& b) {
     // EQ: revised to look only for nearer x distance
-    return CGAL::abs(robot_position.x() - a.x()) < CGAL::abs(robot_position.x() - b.x());
+    // return CGAL::abs(robot_position.x() - a.x()) < CGAL::abs(robot_position.x() - b.x());
+    auto comp = CGAL::compare_distance_to_point(robot_position, a, b);
+    return (comp == CGAL::SMALLER);
   };
 
   std::vector<Point> starting_points = getIntersectionPoints(polygon, Line(Point(min_x, 0.0), Point(min_x, 1.0)));
