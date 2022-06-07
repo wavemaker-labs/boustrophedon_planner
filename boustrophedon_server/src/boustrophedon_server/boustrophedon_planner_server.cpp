@@ -182,23 +182,6 @@ std::size_t BoustrophedonPlannerServer::loadParams(Parameters new_params)
     new_params.intermediary_separation_ = std::numeric_limits<double>::max();
   }
 
-  if (new_params.enable_half_y_turns_ && new_params.outline_layer_count_ < 1)
-  {
-    if (new_params.allow_points_outside_boundary_)
-    {
-      ROS_WARN_STREAM("Current configuration will result in turns that go outside the boundary, but this has been "
-                      "explicitly enabled");
-    }
-    else
-    {
-      // we can't do half-y-turns safely without an inner boundary layer, as the arc will stick outside of the boundary
-      ROS_ERROR_STREAM("Cannot plan using half-y-turns if the outline_layer_count is less than 1! Boustrophedon "
-                       "planner will not update.");
-      new_params.enable_half_y_turns_ = false;
-      return error;
-    }
-  }
-
   // actual update applied with correct settings
   params_ = new_params;
 
@@ -299,7 +282,7 @@ std::vector<NavPoint> BoustrophedonPlannerServer::executePlanPathInternal(
                                                     const boustrophedon_msgs::PlanMowingPathGoal& goal,
                                                     Parameters params)
 {
-  // std::string boundaexecutePlanPathInternalry_frame = goal->property.header.frame_id;
+  // std::string boundary_frame = goal->property.header.frame_id;
   if (std::string("Initial parameters not yet received.") == last_status_)
   {
     return {};
@@ -384,6 +367,7 @@ std::vector<NavPoint> BoustrophedonPlannerServer::executePlanPathInternal(
     // add the stripes to the path, using merged_polygon boundary to travel if necessary.
     striping_planner_.addToPath(merged_polygon, subpoly, robot_position, path);
   }
+
   if (params.travel_along_boundary_)
   {
     striping_planner_.addReturnToStart(merged_polygon, start_position, robot_position, path);
