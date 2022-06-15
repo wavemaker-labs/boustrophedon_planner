@@ -447,6 +447,53 @@ bool BoustrophedonPlannerServer::convertStripingPlanToPath(boustrophedon_msgs::C
                    return new_pose;
                  });
 
+  // below just computes for orientations
+  double heading = 0.0;
+  constexpr double k_epsilon = 0.001;
+  std::vector<std::size_t> lookback_indices;
+
+  auto &poses = response.path.poses;
+  auto get_heading = [](const geometry_msgs::PoseStamped& start_point,
+                        const geometry_msgs::PoseStamped& end_point) {
+    auto dx = end_point.pose.position.x - start_point.pose.position.x;
+    auto dy = end_point.pose.position.y - start_point.pose.position.y;
+    // negligible values
+    if (abs(dx) <= k_epsilon)
+      dx = 0.0;
+    if (abs(dy) <= k_epsilon)
+      dy = 0.0;
+
+    return atan2(dy, dx);
+  };
+
+  // Calculate the yaws from one point to another
+  for (std::size_t index = 0; index < response.path.poses.size() - 1; ++index)
+  {
+    heading = get_heading(poses[index], poses[index + 1]);
+
+    // Avoid setting a yaw of 0
+    if (abs(heading) <= k_epsilon)
+    {
+      lookback_indices.push_back(index);
+    }
+    else
+    {
+      // Go back to those points whose yaw were 0, and set the yaw now
+      for (auto const &back_idx : lookback_indices)
+      {
+        poses[back_idx].pose.orientation = tf::createQuaternionMsgFromYaw(heading);
+        lookback_indices.clear();
+      }
+      poses[index].pose.orientation = tf::createQuaternionMsgFromYaw(heading);
+    }
+  }
+  // Last yaw to calculate
+  if (poses.size() > 2)
+  {
+    auto last_heading = get_heading(poses[poses.size() - 2], poses.back());
+    poses.back().pose.orientation = tf::createQuaternionMsgFromYaw(last_heading);
+  }
+
   return true;
 }
 
