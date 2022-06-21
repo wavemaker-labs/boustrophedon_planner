@@ -21,21 +21,66 @@ void StripingPlanner::addToPath(const Polygon& polygon, const Polygon& sub_polyg
 
   if (new_path_section.empty())
   {
+    // std::cout << "New path section is empty!!" << std::endl;
     return;
   }
 
+  bool trackBoundary = false;
   if (params_.travel_along_boundary)
+  {
+    trackBoundary = true;
+  }
+  else if (path.size() > 0)
+  {
+    // check if the straight line route to next sub-area goes outside the boundary
+    auto intersections = getIntersectionPoints(polygon, Line(path.back().point, new_path_section.front().point));
+    // std::cout << "intersections = [" ;
+    // for (auto const &vertex : intersections)
+    // {
+    //   std::cout << "(" << vertex.x() << ", " << vertex.y() << "), ";
+    // }
+    // std::cout << "]" << std::endl;
+
+    if (intersections.size() > 1)
+    {
+      // compare intersection point distances from last position. to sort the intersections
+      auto compare_current_point_distance = [&robot_position](const auto& a, const auto& b) {
+        auto comp = CGAL::compare_distance_to_point(robot_position, a, b);
+        return (comp == CGAL::SMALLER);
+      };
+      // sort so we can calculate intermediate points properly
+      std::sort(intersections.begin(), intersections.end(), compare_current_point_distance);
+
+      // Determine all intermediate points between intersections
+      auto went_outside = [&polygon](const auto& a, const auto& b) {
+        auto midpoint_x = 0.5 * (a.x() + b.x());
+        auto midpoint_y = 0.5 * (a.y() + b.y());
+        auto result = polygon.bounded_side(Point(midpoint_x, midpoint_y));
+
+        return (CGAL::ON_UNBOUNDED_SIDE == result);
+      };
+      for (size_t index = 0; index + 1 < intersections.size(); ++index)
+      {
+        auto result = went_outside(intersections[index], intersections[index + 1]);
+        if (result)
+        {
+          trackBoundary = true;
+          break;
+        }
+      }
+      // std::cout << std::boolalpha << "track boundary == " << trackBoundary << std::endl;
+    }
+  }
+
+  if (trackBoundary)
   {
     std::vector<NavPoint> start_to_striping =
         getOutlinePathToPoint(polygon, robot_position, new_path_section.front().point);
 
     path.insert(path.end(), start_to_striping.begin(), start_to_striping.end());
-    path.insert(path.end(), new_path_section.begin(), new_path_section.end());
   }
-  else
-  {
-    path.insert(path.end(), new_path_section.begin(), new_path_section.end());
-  }
+  path.insert(path.end(), new_path_section.begin(), new_path_section.end());
+
   robot_position = new_path_section.back().point;
 }
 
@@ -57,6 +102,7 @@ void StripingPlanner::fillPolygon(const Polygon& polygon, std::vector<NavPoint>&
   StripingDirection stripe_dir = StripingDirection::STARTING;
 
   bool left_closest = isLeftClosest(polygon, robot_position, min_x, max_x);
+
   for (auto stripe_num = 0; stripe_num < stripe_count; stripe_num++)
   {
     double x;
@@ -270,6 +316,23 @@ void StripingPlanner::addHalfYTurnPoints(std::vector<NavPoint>& path, const Poin
   Point arc_center_point;
   std::vector<NavPoint> arc;
 
+  //         /|<--stripe
+  //  edge->/ |dy
+  //       /}_|
+  double boundary_angle = atan2(fabs(path.back().point.y() - next_stripe_start.y()), params_.stripe_separation);
+  double turn_setback = 0.0;
+
+  // if we will hit the boundary at the end, we should set an earlier turn distance
+  if (    (stripe_dir == StripingDirection::DOWN && path.back().point.y() > next_stripe_start.y())
+       || (stripe_dir == StripingDirection::UP && path.back().point.y() < next_stripe_start.y()))
+  {
+    //       |\<- stripe
+    // edge->| \ h = (*offset* + r)
+    //       |_{\
+    //        r    -> let's find an *offset* from the end of the stripe
+    turn_setback = params_.stripe_separation * (1.0 / cos(boundary_angle) - 1);
+  }
+
   // we'll need to do different behaviors based on which direction we are striping in
   // the key differences are whether we are striping left-to-right or right-to-left, and whether we are going up or down
   if (stripe_dir == StripingDirection::DOWN && path.back().point.x() < next_stripe_start.x())
@@ -277,164 +340,86 @@ void StripingPlanner::addHalfYTurnPoints(std::vector<NavPoint>& path, const Poin
     // we are going left to right
     // the current stripe is going down, so we need an arc from an UP stripe to a DOWN stripe
 
-    // figure out which one of path.back() or next_stripe_start is higher y-coordinate
-    if (definitelyGreaterThan(path.back().point.y(), next_stripe_start.y(), EPSILON))
-    {
-      // the previous stripe's end is higher than the current stripe's start.
+    // the arc is centered around a point in the previous stripe
+    arc_center_point =
+        Point(path.back().point.x(),
+              path.back().point.y() - turn_setback
+                + params_.turn_start_offset - params_.stripe_separation);
 
-      // the arc is centered around a point in the previous stripe
-      arc_center_point =
-          Point(path.back().point.x(), path.back().point.y() + params_.turn_start_offset - params_.stripe_separation);
+    // For this case, we'll use a circular arc, starting from PI/2 and ending at 0 (left to right, higher to lower)
+    arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation, CGAL_PI / 2, 0.0,
+                                  params_.points_per_turn);
 
-      // For this case, we'll use a circular arc, starting from PI/2 and ending at 0 (left to right, higher to lower)
-      arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation, CGAL_PI / 2, 0.0,
-                                   params_.points_per_turn);
-
-      // the first point in the arc is the zero-turn point, make it end the stripe
-      arc.front().type = PointType::StripeEnd;
-      // copy the first point in the arc to start the next stripe
-      arc.insert(arc.begin() + 1, NavPoint{ PointType::StripeStart, arc.front().point });
-    }
-    else
-    {
-      // the previous stripe's end is lower or equal(ish) to the current stripe's start.
-
-      // the arc is centered around a point in the current stripe
-      arc_center_point =
-          Point(next_stripe_start.x(), next_stripe_start.y() + params_.turn_start_offset - params_.stripe_separation);
-
-      // For this case, we'll use a circular arc, starting from PI and ending at PI/2 (left to right, lower to higher)
-      arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation, CGAL_PI, CGAL_PI / 2,
-                                   params_.points_per_turn);
-
-      // the last point in the arc is the zero-turn point, make it end the stripe
-      arc.back().type = PointType::StripeEnd;
-      // copy the last point in the arc to start the next stripe
-      arc.insert(arc.end(), NavPoint{ PointType::StripeStart, arc.back().point });
-    }
+    // the first point in the arc is the zero-turn point, make it end the stripe
+    arc.front().type = PointType::StripeEnd;
+    // copy the first point in the arc to start the next stripe
+    arc.insert(arc.begin() + 1, NavPoint{ PointType::StripeStart, arc.front().point });
   }
   else if (stripe_dir == StripingDirection::UP && path.back().point.x() < next_stripe_start.x())
   {
     // we are going left to right
     // the current stripe is going up, so we need an arc from a DOWN stripe to an UP stripe.
 
-    // figure out which one of path.back() or next_stripe_start is higher y-coordinate
-    if (definitelyLessThan(path.back().point.y(), next_stripe_start.y(), EPSILON))
-    {
-      // the previous stripe's end is lower than the current stripe's start.
+    // the previous stripe's end is lower than the current stripe's start.
 
-      // the arc is centered around a point in the previous stripe
-      arc_center_point =
-          Point(path.back().point.x(), path.back().point.y() - params_.turn_start_offset + params_.stripe_separation);
+    // the arc is centered around a point in the previous stripe
+    arc_center_point =
+        Point(path.back().point.x(),
+              path.back().point.y() + turn_setback
+               - params_.turn_start_offset + params_.stripe_separation);
 
-      // For this case, we'll use a circular arc, starting from 3PI/2 and ending at 2PI (left to right, lower to higher)
-      arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation, 3 * CGAL_PI / 2, CGAL_PI * 2,
-                                   params_.points_per_turn);
+    // For this case, we'll use a circular arc, starting from 3PI/2 and ending at 2PI (left to right, lower to higher)
+    arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation, 3 * CGAL_PI / 2, CGAL_PI * 2,
+                                 params_.points_per_turn);
 
-      // the first point in the arc is the zero-turn point, make it end the stripe
-      arc.front().type = PointType::StripeEnd;
-      // copy the first point in the arc to start the next stripe
-      arc.insert(arc.begin() + 1, NavPoint{ PointType::StripeStart, arc.front().point });
-    }
-    else
-    {
-      // the previous stripe's end is higher or equal(ish) to the current stripe's start.
-
-      // the arc is centered around a point in the current stripe
-      arc_center_point =
-          Point(next_stripe_start.x(), next_stripe_start.y() - params_.turn_start_offset + params_.stripe_separation);
-
-      // For this case, we'll use a circular arc, starting from PI and ending at 3PI/2 (left to right, higher to lower)
-      arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation, CGAL_PI, 3 * CGAL_PI / 2,
-                                   params_.points_per_turn);
-
-      // the last point in the arc is the zero-turn point, make it end the stripe
-      arc.back().type = PointType::StripeEnd;
-      // copy the last point in the arc to start the next stripe
-      arc.insert(arc.end(), NavPoint{ PointType::StripeStart, arc.back().point });
-    }
+    // the first point in the arc is the zero-turn point, make it end the stripe
+    arc.front().type = PointType::StripeEnd;
+    // copy the first point in the arc to start the next stripe
+    arc.insert(arc.begin() + 1, NavPoint{ PointType::StripeStart, arc.front().point });
   }
   else if (stripe_dir == StripingDirection::DOWN && path.back().point.x() > next_stripe_start.x())
   {
     // we are going right to left
     // the current stripe is going down, so we need an arc from an UP stripe to a DOWN stripe
 
-    // figure out which one of path.back() or next_stripe_start is higher y-coordinate
-    if (definitelyGreaterThan(path.back().point.y(), next_stripe_start.y(), EPSILON))
-    {
-      // the previous stripe's end is higher than the current stripe's start.
+    // the previous stripe's end is higher than the current stripe's start.
 
-      // the arc is centered around a point in the previous stripe
-      arc_center_point =
-          Point(path.back().point.x(), path.back().point.y() + params_.turn_start_offset - params_.stripe_separation);
+    // the arc is centered around a point in the previous stripe
+    arc_center_point =
+        Point(path.back().point.x(),
+              path.back().point.y() - turn_setback
+               + params_.turn_start_offset - params_.stripe_separation);
 
-      // For this case, we'll use a circular arc, starting from PI/2 and ending at PI (right to left, higher to lower)
-      arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation, CGAL_PI / 2, CGAL_PI,
-                                   params_.points_per_turn);
+    // For this case, we'll use a circular arc, starting from PI/2 and ending at PI (right to left, higher to lower)
+    arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation, CGAL_PI / 2, CGAL_PI,
+                                 params_.points_per_turn);
 
-      // the first point in the arc is the zero-turn point, make it end the stripe
-      arc.front().type = PointType::StripeEnd;
-      // copy the first point in the arc to start the next stripe
-      arc.insert(arc.begin() + 1, NavPoint{ PointType::StripeStart, arc.front().point });
-    }
-    else
-    {
-      // the previous stripe's end is lower or equal(ish) to the current stripe's start.
-
-      // the arc is centered around a point in the current stripe
-      arc_center_point =
-          Point(next_stripe_start.x(), next_stripe_start.y() + params_.turn_start_offset - params_.stripe_separation);
-
-      // For this case, we'll use a circular arc, starting from 0 and ending at PI/2 (right to left, lower to higher)
-      arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation, 0.0, CGAL_PI / 2,
-                                   params_.points_per_turn);
-
-      // the last point in the arc is the zero-turn point, make it end the stripe
-      arc.back().type = PointType::StripeEnd;
-      // copy the last point in the arc to start the next stripe
-      arc.insert(arc.end(), NavPoint{ PointType::StripeStart, arc.back().point });
-    }
+    // the first point in the arc is the zero-turn point, make it end the stripe
+    arc.front().type = PointType::StripeEnd;
+    // copy the first point in the arc to start the next stripe
+    arc.insert(arc.begin() + 1, NavPoint{ PointType::StripeStart, arc.front().point });
   }
   else if (stripe_dir == StripingDirection::UP && path.back().point.x() > next_stripe_start.x())
   {
     // we are going right to left
     // the current stripe is going up, so we need an arc from a DOWN stripe to an UP stripe.
 
-    // figure out which one of path.back() or next_stripe_start is higher y-coordinate
-    if (definitelyLessThan(path.back().point.y(), next_stripe_start.y(), EPSILON))
-    {
-      // the previous stripe's end is lower than the current stripe's start.
+    // the previous stripe's end is lower than the current stripe's start.
 
-      // the arc is centered around a point in the previous stripe
-      arc_center_point =
-          Point(path.back().point.x(), path.back().point.y() - params_.turn_start_offset + params_.stripe_separation);
+    // the arc is centered around a point in the previous stripe
+    arc_center_point =
+        Point(path.back().point.x(),
+              path.back().point.y() + turn_setback
+               - params_.turn_start_offset + params_.stripe_separation);
 
-      // For this case, we'll use a circular arc, starting from 3PI/2 and ending at PI (right to left, lower to higher)
-      arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation, 3 * CGAL_PI / 2, CGAL_PI,
-                                   params_.points_per_turn);
+    // For this case, we'll use a circular arc, starting from 3PI/2 and ending at PI (right to left, lower to higher)
+    arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation, 3 * CGAL_PI / 2, CGAL_PI,
+                                 params_.points_per_turn);
 
-      // the first point in the arc is the zero-turn point, make it end the stripe
-      arc.front().type = PointType::StripeEnd;
-      // copy the first point in the arc to start the next stripe
-      arc.insert(arc.begin() + 1, NavPoint{ PointType::StripeStart, arc.front().point });
-    }
-    else
-    {
-      // the previous stripe's end is higher or equal(ish) to the current stripe's start.
-
-      // the arc is centered around a point in the current stripe
-      arc_center_point =
-          Point(next_stripe_start.x(), next_stripe_start.y() - params_.turn_start_offset + params_.stripe_separation);
-
-      // For this case, we'll use a circular arc, starting from 2PI and ending at 3PI/2 (right to left, higher to lower)
-      arc = generateDiscretizedArc(arc_center_point, params_.stripe_separation, CGAL_PI * 2, 3 * CGAL_PI / 2,
-                                   params_.points_per_turn);
-
-      // the last point in the arc is the zero-turn point, make it end the stripe
-      arc.back().type = PointType::StripeEnd;
-      // copy the last point in the arc to start the next stripe
-      arc.insert(arc.end(), NavPoint{ PointType::StripeStart, arc.back().point });
-    }
+    // the first point in the arc is the zero-turn point, make it end the stripe
+    arc.front().type = PointType::StripeEnd;
+    // copy the first point in the arc to start the next stripe
+    arc.insert(arc.begin() + 1, NavPoint{ PointType::StripeStart, arc.front().point });
   }
   else
   {
@@ -700,6 +685,8 @@ bool StripingPlanner::isLeftClosest(const Polygon& polygon, const Point& robot_p
 {
   // lambda for determining the first striping direction naively
   auto compare_current_point_distance = [&robot_position](const auto& a, const auto& b) {
+    // EQ: revised to look only for nearer x distance
+    // return CGAL::abs(robot_position.x() - a.x()) < CGAL::abs(robot_position.x() - b.x());
     auto comp = CGAL::compare_distance_to_point(robot_position, a, b);
     return (comp == CGAL::SMALLER);
   };
@@ -711,7 +698,10 @@ bool StripingPlanner::isLeftClosest(const Polygon& polygon, const Point& robot_p
 
   // if we cannot determine, fix this to false
   if (starting_points.empty())
+  {
+    std::cout << "WARNING: START POINT NOT FOUND!" << std::endl;
     return false;
+  }
 
   // if the closest potential starting point is on the left, return true. If not, return false.
   return starting_points.front().x() == min_x;
