@@ -49,6 +49,10 @@ public:
   void addReturnToStart(const Polygon& polygon, const Point& start_position, const Point& robot_position,
                         std::vector<NavPoint>& path);
 
+  // Constructs the fill portion of the mowing path, which stripes back and
+  //  forth over the inner area left after the outline portion is complete.
+  void fillPolygon(const Polygon& polygon, std::vector<NavPoint>& path, const Point& robot_position);
+
 private:
   enum class StripingDirection
   {
@@ -58,10 +62,6 @@ private:
   };
 
   Parameters params_;
-
-  // Constructs the fill portion of the mowing path, which stripes back and
-  //  forth over the inner area left after the outline portion is complete.
-  void fillPolygon(const Polygon& polygon, std::vector<NavPoint>& path, const Point& robot_position);
 
   void addIntermediaryPoints(std::vector<Point>& intersection);
   void addBoundaryFollowingPoints(std::vector<NavPoint>& path, const Point& next_stripe_start, Polygon polygon);

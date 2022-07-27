@@ -1,0 +1,4 @@
+<launch>
+    <include file="$(find boustrophedon_server)/launch/boustrophedon_server.launch" />
+    <test test-name="boustrophedon_planner_client_tests" time-limit="600.0" pkg="boustrophedon_server" type="boustrophedon_planner_client_tests" />
+</launch>
