@@ -67,7 +67,7 @@ def get_robot_pose():
     robot_pose.orientation.z = t.transform.rotation.z
     robot_pose.orientation.w = t.transform.rotation.w
 
-    return robot_pose
+    return (robot_pose.position.x, robot_pose.position.y)
 
 
 # just a helper to boustrophedon planner's internal converter. Unused
@@ -111,7 +111,7 @@ def read_field_file(field_yaml):
         (easting, northing) = (point['easting'], point['northing'])
         polygon_points.append((float(easting), float(northing)))
 
-    print("input poly =", polygon_points)
+    print("input_poly =", polygon_points)
 
     return polygon_points
 
@@ -201,6 +201,10 @@ def clean_dead_end_paths(path, types):
             lookback_index = 0
 
         new_types.append(types[index])
+
+    # Add the last point
+    new_path.append(path[-1])
+    new_types.append(types[-1])
 
     # print(new_path)
 
@@ -303,7 +307,7 @@ def fetch_params():
     return loaded_params
 
 
-def populate_plan_path_input(polygon):
+def populate_plan_path_input(polygon, start_point = None):
 
     polygon_pub = PolygonStamped()
     for point in polygon:
@@ -312,8 +316,12 @@ def populate_plan_path_input(polygon):
 
     # EQ: fix the start to first point of poly
     robot_pose = PoseStamped()
-    robot_pose.pose.position.x = polygon[0][0]
-    robot_pose.pose.position.y = polygon[0][1]
+    if start_point:
+        robot_pose.pose.position.x = start_point[0]
+        robot_pose.pose.position.y = start_point[1]
+    else:
+        robot_pose.pose.position.x = polygon[0][0]
+        robot_pose.pose.position.y = polygon[0][1]
     robot_pose.pose.orientation.w = 1.0
 
     pub_node.goal.property.polygon = polygon_pub.polygon
@@ -331,7 +339,7 @@ def populate_plan_path_input(polygon):
     return pub_node
 
 def send_polygon(polygon, robot_pose):
-    pub_node = populate_plan_path_input(polygon)
+    pub_node = populate_plan_path_input(polygon, robot_pose)
     pub.publish(pub_node)
     print("sent to coverage planner")
 
@@ -444,7 +452,7 @@ def save_to_csv(points, types=[]):
 
 
 def send_polygon_blocking(polygon, robot_pose):
-    pub_node = populate_plan_path_input(polygon)
+    pub_node = populate_plan_path_input(polygon, robot_pose)
 
     boustro_planner = SimpleActionClient('plan_path', PlanMowingPathAction)
     boustro_planner.wait_for_server()
@@ -519,7 +527,7 @@ def visually_trace_waypoint(points, types, slow=False):
         # plt.scatter(y_plt, x_plt, s=[(4-x)*100 for x in type_plt], c=type_plt, cmap='rainbow')
         plt.title("direction: " + str(cut_direction) + " deg")
         plt.show(block=False)
-        plt.pause(0.5)
+        plt.pause(0.1)
 
 def visualize_path_as_marker(path, path_status):
     """
@@ -606,11 +614,12 @@ if __name__ == '__main__':
     # plt.show()
 
     # cut_direction = rospy.get_param("~cut_direction", 0.0)
-    cut_direction = 16
+    cut_direction = 0
     rospy.set_param("/boustrophedon_server/stripe_angle", cut_direction * pi / 180.0)
 
     print("successfully read map. sending polygon..")
     robot_pose = get_robot_pose()
+
     (points, types) = send_polygon_blocking(polygon, robot_pose)
     # Add True param to trace the path one by one
     visually_trace_waypoint(points, types)
