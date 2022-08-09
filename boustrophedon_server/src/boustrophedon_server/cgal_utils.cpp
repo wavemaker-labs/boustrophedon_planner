@@ -28,6 +28,14 @@ void postprocessPolygonAndPath(const AffineTransform& preprocess_transform, Poly
   transformNavPoints(path.begin(), path.end(), transform);
 }
 
+std::vector<Point> findExtremes(const Polygon& polygon)
+{
+  std::vector<Point> result;
+  result.push_back((*polygon.left_vertex()));
+  result.push_back((*polygon.right_vertex()));
+  return result;
+}
+
 void transformNavPoints(const std::vector<NavPoint>::iterator& first, const std::vector<NavPoint>::iterator& last,
                         const CGAL::Aff_transformation_2<Kernel>& transform)
 {

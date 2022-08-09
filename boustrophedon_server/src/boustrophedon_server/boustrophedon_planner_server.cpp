@@ -10,6 +10,8 @@ BoustrophedonPlannerServer::BoustrophedonPlannerServer()
                    false)
   , conversion_server_{ node_handle_.advertiseService("convert_striping_plan_to_path",
                                                       &BoustrophedonPlannerServer::convertStripingPlanToPath, this) }
+  , start_points_server_{ node_handle_.advertiseService("get_start_points",
+                                                      &BoustrophedonPlannerServer::findStartPoints, this) }
 {
   std::size_t error = fetchParams();
 
@@ -494,6 +496,47 @@ bool BoustrophedonPlannerServer::convertStripingPlanToPath(boustrophedon_msgs::C
     poses.back().pose.orientation = tf::createQuaternionMsgFromYaw(last_heading);
   }
 
+  return true;
+}
+
+bool BoustrophedonPlannerServer::findStartPoints(boustrophedon_msgs::FindStartPoints::Request& request,
+                                                 boustrophedon_msgs::FindStartPoints::Response& response)
+{
+  std::string status_message;
+  double cut_angle_radians = request.cut_angle_degrees * 3.1415927 / 180.0;
+
+  Polygon polygon = fromBoundary(request.property);
+  if (!checkPolygonIsValid(polygon))
+  {
+    status_message = std::string("Boustrophedon planner does not work for polygons of "
+                               "size "
+                               "< 3.");
+    return false;
+  }
+  if (!polygon.is_simple())
+  {
+    status_message = std::string("Boustrophedon planner only works for simple (non "
+                               "self-intersecting) polygons.");
+    return false;
+  }
+  // This is just a dummy argument
+  Point robot_position = *polygon.bottom_vertex();
+
+  // This rotates the polygon so that the reference vector is always oriented from horizontally
+  auto preprocess_transform = preprocessPolygon(polygon, robot_position, cut_angle_radians);
+
+  // Gets the left- and right-most polygon points that could be the best start points
+  auto best_start_points = findExtremes(polygon);
+
+  for(auto const& Point : best_start_points)
+  {
+    geometry_msgs::PointStamped stamped;
+    stamped.header.frame_id = request.property.header.frame_id;
+    stamped.point.x = Point.x();
+    stamped.point.y = Point.y();
+    stamped.point.z = 0.0;
+    response.end_points.push_back(stamped);
+  }
   return true;
 }
 

@@ -11,6 +11,8 @@ AffineTransform preprocessPolygon(Polygon& polygon, Point& robot_position, const
 void postprocessPolygonAndPath(const AffineTransform& preprocess_transform, Polygon& polygon,
                                std::vector<NavPoint>& path);
 
+std::vector<Point> findExtremes(const Polygon& polygon);
+
 template <typename Iterator_t>
 static void transformPoints(const Iterator_t& first, const Iterator_t& last,
                             const CGAL::Aff_transformation_2<Kernel>& transform)

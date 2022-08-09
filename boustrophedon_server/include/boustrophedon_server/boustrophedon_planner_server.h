@@ -9,6 +9,7 @@
 #include <boustrophedon_msgs/PlanMowingPathAction.h>
 #include <boustrophedon_msgs/PlanMowingPathParamAction.h>
 #include <boustrophedon_msgs/ConvertPlanToPath.h>
+#include <boustrophedon_msgs/FindStartPoints.h>
 #include <boustrophedon_msgs/PlanParameters.h>
 #include <nav_msgs/Odometry.h>
 
@@ -34,6 +35,7 @@ private:
   Server action_server_;
   ServerWithParam action_server_with_param_;
   ros::ServiceServer conversion_server_;
+  ros::ServiceServer start_points_server_;
   ros::Publisher initial_polygon_publisher_;
   ros::Publisher preprocessed_polygon_publisher_;
   ros::Publisher path_points_publisher_;
@@ -74,6 +76,8 @@ private:
 
   bool convertStripingPlanToPath(boustrophedon_msgs::ConvertPlanToPath::Request& request,
                                  boustrophedon_msgs::ConvertPlanToPath::Response& response);
+  bool findStartPoints(boustrophedon_msgs::FindStartPoints::Request& request,
+                       boustrophedon_msgs::FindStartPoints::Response& response);
   boustrophedon_msgs::PlanMowingPathResult toResult(std::vector<NavPoint>&& path, const std::string& frame) const;
   Polygon fromBoundary(const geometry_msgs::PolygonStamped& boundary) const;
   Point fromPositionWithFrame(const geometry_msgs::PoseStamped& pose, const std::string& target_frame) const;

@@ -22,6 +22,7 @@ add_message_files(
 add_service_files(
   FILES
   ConvertPlanToPath.srv
+  FindStartPoints.srv
 )
 
 add_action_files(
