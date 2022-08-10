@@ -1,0 +1,4 @@
+geometry_msgs/PolygonStamped property
+float64 cut_angle_degrees
+---
+geometry_msgs/PointStamped[] end_points
