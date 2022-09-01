@@ -27,9 +27,9 @@ BoustrophedonPlannerServer::BoustrophedonPlannerServer()
 
   if (publish_polygons_)
   {
-    initial_polygon_publisher_ = private_node_handle_.advertise<geometry_msgs::PolygonStamped>("initial_polygon", 1);
+    initial_polygon_publisher_ = private_node_handle_.advertise<geometry_msgs::PolygonStamped>("initial_polygon", 1, true);
     preprocessed_polygon_publisher_ =
-        private_node_handle_.advertise<geometry_msgs::PolygonStamped>("preprocessed_polygon", 1);
+        private_node_handle_.advertise<geometry_msgs::PolygonStamped>("preprocessed_polygon", 1, true);
   }
   // mainly for use with plotJuggler, which wants the points to be put one at a time on the same topic
   if (publish_path_points_)
@@ -234,7 +234,7 @@ void BoustrophedonPlannerServer::configAndExecutePlanPathAction(const boustrophe
   else
   {
     action_server_with_param_.setAborted(ServerWithParam::Result(), last_status_);
-    ROS_INFO_STREAM("Error result sent.");
+    ROS_INFO_STREAM("Error result sent, status:" << last_status_);
   }
 
   // Restore previous parameters
@@ -276,7 +276,7 @@ void BoustrophedonPlannerServer::executePlanPathAction(const boustrophedon_msgs:
   else
   {
     action_server_.setAborted(Server::Result(), last_status_);
-    ROS_INFO_STREAM("Error result sent.");
+    ROS_INFO_STREAM("Error result sent, status:" << last_status_);
   }
 }
 
@@ -528,15 +528,18 @@ bool BoustrophedonPlannerServer::findStartPoints(boustrophedon_msgs::FindStartPo
   // Gets the left- and right-most polygon points that could be the best start points
   auto best_start_points = findExtremes(polygon);
 
-  for(auto const& Point : best_start_points)
+  auto transform = preprocess_transform.inverse();
+  for(auto & Point : best_start_points)
   {
     geometry_msgs::PointStamped stamped;
     stamped.header.frame_id = request.property.header.frame_id;
+    Point = transform(Point);
     stamped.point.x = Point.x();
     stamped.point.y = Point.y();
     stamped.point.z = 0.0;
     response.end_points.push_back(stamped);
   }
+
   return true;
 }
 
