@@ -89,24 +89,70 @@ namespace testutil {
 
         return flag;
     }
+
+    inline std::vector<geometry_msgs::Point>
+    interpolate(const geometry_msgs::Point &start_point,
+                const geometry_msgs::Point &target_point) {
+        constexpr auto resolution{0.1};
+        auto dist = [] (const geometry_msgs::Point &start,
+                        const geometry_msgs::Point &end) -> double {
+            return std::hypot((start.x - end.x), (start.y - end.y));
+        };
+        std::vector<geometry_msgs::Point> result;
+
+        auto cover_distance = dist(start_point, target_point);
+        if (cover_distance > 0) {
+            geometry_msgs::Point next_point;
+            next_point = start_point;
+            while (dist(next_point, start_point) <= cover_distance) {
+                next_point.x += (resolution / cover_distance)*(target_point.x - start_point.x);
+                next_point.y += (resolution / cover_distance)*(target_point.y - start_point.y);
+                result.push_back(next_point);
+            }
+        }
+        return result;
+    }
+
+    inline StripingPlan get_interpolated_plan(const StripingPlan &plan) {
+        StripingPlan new_plan;
+
+        for (size_t wp_index = 0; wp_index < plan.points.size(); ++wp_index) {
+            auto point = plan.points[wp_index];
+            if ((static_cast<long>(wp_index) - 1) >= static_cast<long>(0) ) {
+                auto prev_point = plan.points[wp_index - 1];
+                auto new_points = testutil::interpolate(prev_point.point, point.point);
+                for (const auto &interpoint : new_points) {
+                    boustrophedon_msgs::StripingPoint new_point;
+                    new_point.type = boustrophedon_msgs::StripingPoint::STRIPE_INTERMEDIATE;
+                    new_point.point.x = interpoint.x;
+                    new_point.point.y = interpoint.y;
+                    new_point.point.z = interpoint.z;
+                    new_plan.points.push_back(new_point);
+                }
+            }
+            new_plan.points.push_back(point);
+        }
+        return new_plan;
+    }
 }
 
 namespace testtypes {
     // So that we can test any combination of the commonly used settings
-    using TestParamTypes = std::tuple<int /*angles*/, double /*spacings*/, const char * /*maps*/>;
+    using TestParamTypes = std::tuple<int /*angles*/, double /*spacings*/, int /*start point indices*/, const char * /*maps*/>;
 
     struct paramNameStringGen {
         std::string operator()(const ::testing::TestParamInfo<TestParamTypes>& info) {
         // Can use info.param here to generate the test suffix
         std::stringstream name;
-        auto map_name = std::string(std::get<2>(info.param));
+        auto map_name = std::string(std::get<3>(info.param));
         auto angle_str = std::to_string(std::get<0>(info.param));
         auto spacing_str = std::to_string(std::get<1>(info.param));
+        auto start_index_str = std::to_string(std::get<2>(info.param));
         std::replace_if(spacing_str.begin(), spacing_str.end(),
             [](char c) { return !std::isalnum(c); }, '_');
         std::replace_if(map_name.begin(), map_name.end(),
             [](char c) { return !std::isalnum(c); }, '_');
-        name << angle_str << "_" << spacing_str << "_"
+        name << angle_str << "_" << spacing_str << "_" << start_index_str << "_"
             << map_name.substr(0, map_name.size() - 5);
         return name.str();
         }
@@ -126,6 +172,7 @@ protected:
     PlanMowingPathParamActionGoal current_goal_with_params_;
     int angle_;
     double spacing_;
+    int start_index_;
     bool initial_simple_goal_succeeded_{false};
     bool initial_bundled_goal_succeeded_{false};
 
@@ -137,9 +184,10 @@ protected:
         auto current_param = GetParam();
 
         std::string map_dir = ros::package::getPath("boustrophedon_example") + "/cutting/mowing/maps/";
-        EXPECT_NO_THROW(current_goal_ = testutil::get_goal_from_file(map_dir + std::string(std::get<2>(current_param))));
+        EXPECT_NO_THROW(current_goal_ = testutil::get_goal_from_file(map_dir + std::string(std::get<3>(current_param))));
         angle_ = std::get<0>(current_param);
         spacing_ = std::get<1>(current_param);
+        start_index_ = std::get<2>(current_param);
     }
 
     inline void TearDown() override {
@@ -171,6 +219,11 @@ protected:
     inline StripingPlan submit_goal_and_get_result() {
         current_goal_with_params_.goal.property = current_goal_.goal.property;
         current_goal_with_params_.goal.robot_position = current_goal_.goal.robot_position;
+        auto &goal_start = current_goal_.goal.property.polygon.points[start_index_];
+        std::cerr << "Starting goal at [" << goal_start.x << ", " << goal_start.y << "]" << std::endl;
+        auto &start_position = current_goal_with_params_.goal.robot_position.pose.position;
+        start_position.x = goal_start.x;
+        start_position.y = goal_start.y;
         current_goal_with_params_.goal.parameters = create_test_param();
         planning_client_with_param_.sendGoalAndWait(current_goal_with_params_.goal, ros::Duration(5));
 
@@ -212,10 +265,11 @@ protected:
 
         // asserts
         ASSERT_TRUE(safety_polygon != nullptr) << "Safety_polygon was not found!";
-        for (auto const &point : plan.points) {
+        auto extended_plan = testutil::get_interpolated_plan(plan);
+        for (auto const &point : extended_plan.points) {
             Point p(point.point.x, point.point.y);
             debug_plan << "[" << p.x() << ", " << p.y() << "], ";
-            EXPECT_NE(safety_polygon->bounded_side(p), CGAL::ON_UNBOUNDED_SIDE) << "Point is outside: " << point.point.x << ", " << point.point.y;
+            ASSERT_NE(safety_polygon->bounded_side(p), CGAL::ON_UNBOUNDED_SIDE) << "Point is outside: [" << point.point.x << ", " << point.point.y << "], poly: [" << *safety_polygon << "]";
             // EXPECT_TRUE(testutil::pointInPolygon(p, poly)) << "Point is outside: " << point.point.x << ", " << point.point.y;
         }
         auto plan_str = debug_plan.str();
@@ -265,35 +319,56 @@ constexpr double MINIMUM_SPACING = 1.0;
 constexpr double MAXIMUM_SPACING = 1.8;
 constexpr double SPACING_STEP = 0.2;
 
-INSTANTIATE_TEST_SUITE_P(CommonSettingsTest, BplannerShould,
+// Tweak with a custom start point. The index is a vertex in the polygon
+constexpr int START_POINT_INDEX = 0;
+constexpr int MAX_START_POINT_INDEX = 8;
+
+INSTANTIATE_TEST_SUITE_P(SpecificSettingsTest, BplannerShould,
   testing::Combine(
-    testing::Range<int>(MINIMUM_ANGLE, MAXIMUM_ANGLE, ANGLE_STEP),
-    testing::Range<double>(MINIMUM_SPACING, MAXIMUM_SPACING, SPACING_STEP),
+    testing::Values(122),
+    testing::Values(MINIMUM_SPACING),
+    testing::Range(START_POINT_INDEX, MAX_START_POINT_INDEX),
     // Add maps that might be interesting to check for issues
     testing::Values(
-        "scholl_large.yaml"
+        "helipad-test_concave.yaml"
     )
   ),
   testtypes::paramNameStringGen()
 );
 
-INSTANTIATE_TEST_SUITE_P(LocalMapsTest, BplannerShould,
+INSTANTIATE_TEST_SUITE_P(CommonSettingsTest, BplannerShould,
   testing::Combine(
-    testing::Values(MINIMUM_ANGLE, MAXIMUM_ANGLE, ANGLE_STEP),
-    testing::Values(MINIMUM_SPACING, MAXIMUM_SPACING),
+    testing::Range<int>(MINIMUM_ANGLE, MAXIMUM_ANGLE, ANGLE_STEP),
+    testing::Range<double>(MINIMUM_SPACING, MAXIMUM_SPACING, SPACING_STEP),
+    testing::Values(START_POINT_INDEX),
     // Add maps that might be interesting to check for issues
     testing::Values(
-        "helipad-L.yaml",
+        "scholl_large.yaml",
         "helipad_section_B.yaml"
     )
   ),
   testtypes::paramNameStringGen()
 );
 
+// INSTANTIATE_TEST_SUITE_P(LocalMapsTest, BplannerShould,
+//   testing::Combine(
+//     testing::Values(MINIMUM_ANGLE, MAXIMUM_ANGLE, ANGLE_STEP),
+//     testing::Values(MINIMUM_SPACING, MAXIMUM_SPACING),
+//     testing::Values(START_POINT_INDEX),
+//     // Add maps that might be interesting to check for issues
+//     testing::Values(
+//         "helipad-L.yaml",
+//         "helipad_section_B.yaml"
+//     )
+//   ),
+//   testtypes::paramNameStringGen()
+// );
+
 INSTANTIATE_TEST_SUITE_P(UtmMapsTest, BplannerShould,
   testing::Combine(
     testing::Range<int>(MINIMUM_ANGLE, MAXIMUM_ANGLE, ANGLE_STEP),
     testing::Values(MINIMUM_SPACING),
+    testing::Values(START_POINT_INDEX),
     testing::Values(
     // Add maps that might be interesting to check for issues
         "utm_very_small_area.yaml"

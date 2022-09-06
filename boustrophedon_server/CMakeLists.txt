@@ -1,7 +1,7 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.10)
 project(boustrophedon_server)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -122,4 +122,6 @@ if(CATKIN_ENABLE_TESTING)
   ## Using python nosetest
   # catkin_add_nosetests(path/to/my_test.py)
 
+  # include(GoogleTest)
+  # gtest_discover_tests(boustrophedon_planner_client_tests)
 endif()
