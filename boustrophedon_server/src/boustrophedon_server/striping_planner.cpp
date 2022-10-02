@@ -25,6 +25,17 @@ void StripingPlanner::addToPath(const Polygon& polygon, const Polygon& sub_polyg
     return;
   }
 
+  auto printp = [](const Polygon &poly, const std::string &name) {
+    std::cout << name << " = [" << std::setprecision(6) << std::fixed;
+    for (size_t i = 0; i < poly.size(); ++i) {
+      auto point = poly[i];
+      std::cout << "[" << point.x() << ", " << point.y() << "], ";
+    }
+    std::cout << "]" << std::endl;
+  };
+  // printp(polygon, "poly_normalized");
+  // printp(sub_polygon, "subpoly");
+
   bool trackBoundary = false;
   if (params_.travel_along_boundary)
   {
@@ -34,7 +45,8 @@ void StripingPlanner::addToPath(const Polygon& polygon, const Polygon& sub_polyg
   {
     // check if the straight line route to next sub-area goes outside the boundary
     auto intersections = getIntersectionPoints(polygon, Line(path.back().point, new_path_section.front().point));
-    // std::cout << "intersections = [" ;
+    intersections.push_back(new_path_section.front().point);
+    // std::cout << "intersections = [" << std::fixed << std::setprecision(6);
     // for (auto const &vertex : intersections)
     // {
     //   std::cout << "(" << vertex.x() << ", " << vertex.y() << "), ";
